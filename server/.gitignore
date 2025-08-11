@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# Django / DRF
+*.log
+*.pot
+*.pyc
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static/
+.env
+.env.*
+.envrc
+.settings/
+
+# VS Code / PyCharm
+.vscode/
+.idea/
+
+# Bytecode cache
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# Coverage / test files
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+test_*.xml
+junit.xml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# MyPy / Pyright / Pyre
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# Pytest
+.pytest_cache/
+
+# Pipenv
+Pipfile.lock
+
+# Ruff / Black
+.ruff_cache/
+.black/
