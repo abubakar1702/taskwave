@@ -4,17 +4,16 @@ import { format } from "date-fns";
 import { ToastContainer, toast } from "react-toastify";
 import {
   HiOutlineCalendar,
-  HiOutlineUser,
   HiOutlineFolderOpen,
   HiOutlineArrowLeft,
-  HiOutlineClock,
-  HiOutlineCheckCircle,
   HiOutlineXCircle,
   HiOutlinePencilAlt,
   HiOutlineTrash,
   HiOutlinePlus,
+  HiOutlineDownload,
 } from "react-icons/hi";
 import { AiOutlinePaperClip } from "react-icons/ai";
+import Subtasks from "../components/task/Subtasks";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -25,7 +24,6 @@ const TaskDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Get access token from storage
   const getAccessToken = () => {
     return (
       localStorage.getItem("accessToken") ||
@@ -33,7 +31,6 @@ const TaskDetails = () => {
     );
   };
 
-  // Fetch task details from API
   const fetchTaskDetails = async () => {
     try {
       setLoading(true);
@@ -77,43 +74,6 @@ const TaskDetails = () => {
       toast.error(`Error loading task: ${err.message}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Toggle subtask completion
-  const toggleSubtaskCompletion = async (subtaskId, currentStatus, taskId) => {
-    try {
-      const accessToken = getAccessToken();
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/tasks/${taskId}/subtask/${subtaskId}/`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            is_completed: !currentStatus,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setTask((prevTask) => ({
-          ...prevTask,
-          subtasks: prevTask.subtasks.map((subtask) =>
-            subtask.id === subtaskId
-              ? { ...subtask, is_completed: !currentStatus }
-              : subtask
-          ),
-        }));
-        toast.success("Subtask updated successfully");
-      } else {
-        throw new Error("Failed to update subtask");
-      }
-    } catch (err) {
-      toast.error("Failed to update subtask");
     }
   };
 
@@ -219,18 +179,11 @@ const TaskDetails = () => {
     task.due_date &&
     new Date(task.due_date) < new Date() &&
     task.status?.toLowerCase() !== "completed";
-  const completedSubtasks =
-    task.subtasks?.filter((subtask) => subtask.is_completed).length || 0;
-  const totalSubtasks = task.subtasks?.length || 0;
-  const progress =
-    totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
-          {/* Back button */}
           <button
             onClick={() => navigate("/tasks")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
@@ -264,10 +217,12 @@ const TaskDetails = () => {
                   >
                     {task.priority} Priority
                   </span>
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-200 text-indigo-600 bg-indigo-50">
-                    <HiOutlineFolderOpen className="w-4 h-4" />
-                    {task.project}
-                  </span>
+                  {task.project && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-200 text-indigo-600 bg-indigo-50">
+                      <HiOutlineFolderOpen className="w-4 h-4" />
+                      {task.project}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -355,137 +310,117 @@ const TaskDetails = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
+          {/* Subtasks Component */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Subtasks */}
-            {task.subtasks && task.subtasks.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Subtasks
-                  </h2>
-                  <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
-                    <HiOutlinePlus className="w-4 h-4" />
-                    Add Subtask
-                  </button>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-6">
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Progress</span>
-                    <span>
-                      {completedSubtasks} of {totalSubtasks} completed
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {task.subtasks.map((subtask) => (
-                    <div
-                      key={subtask.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-                    >
-                      <button
-                        onClick={() =>
-                          toggleSubtaskCompletion(
-                            subtask.id,
-                            subtask.is_completed
-                          )
-                        }
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                          subtask.is_completed
-                            ? "bg-green-500 border-green-500 text-white"
-                            : "border-gray-300 hover:border-green-500"
-                        }`}
-                      >
-                        {subtask.is_completed && (
-                          <HiOutlineCheckCircle className="w-3 h-3" />
-                        )}
-                      </button>
-                      <div className="flex-1">
-                        <h4
-                          className={`text-sm font-medium ${
-                            subtask.is_completed
-                              ? "line-through text-gray-500"
-                              : "text-gray-900"
-                          }`}
-                        >
-                          {subtask.title}
-                        </h4>
-                        {subtask.assigned_to && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Assigned to:{" "}
-                            {subtask.assigned_to.first_name ||
-                            subtask.assigned_to.last_name
-                              ? `${subtask.assigned_to.first_name} ${subtask.assigned_to.last_name}`.trim()
-                              : subtask.assigned_to.username}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <Subtasks task={task} setTask={setTask} />
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {task.assignees && task.assignees.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {/* Creator */}
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Creator
-                </h3>
-                <div className="flex items-center gap-3 mb-6">
-                  {renderAvatar(task.creator)}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">
-                      {task.creator.first_name || task.creator.last_name
-                        ? `${task.creator.first_name} ${task.creator.last_name}`.trim()
-                        : task.creator.username}
-                    </h4>
-                    <p className="text-xs text-gray-500">
-                      {task.creator.email}
-                    </p>
-                  </div>
+            {/* Creator and Assignees */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              {/* Creator */}
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Creator
+              </h3>
+              <div className="flex items-center gap-3 mb-6">
+                {renderAvatar(task.creator)}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {task.creator.first_name || task.creator.last_name
+                      ? `${task.creator.first_name} ${task.creator.last_name}`.trim()
+                      : task.creator.username}
+                  </h4>
+                  <p className="text-xs text-gray-500">{task.creator.email}</p>
                 </div>
+              </div>
 
-                {/* Assignees */}
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Assignees
-                </h3>
-                <div className="divide-y divide-gray-200">
-                  {task.assignees.map((assignee, index) => (
+              {/* Assignees */}
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Assignees
+              </h3>
+              <div className="divide-y divide-gray-200">
+                {task.assignees.map((assignee, index) => (
+                  <div
+                    key={assignee.id}
+                    className={`flex items-center gap-3 py-3 ${
+                      index === 0 ? "pt-0" : ""
+                    }`}
+                  >
+                    {renderAvatar(assignee)}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">
+                        {assignee.first_name || assignee.last_name
+                          ? `${assignee.first_name} ${assignee.last_name}`.trim()
+                          : assignee.username}
+                      </h4>
+                      <p className="text-xs text-gray-500">{assignee.email}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Assets card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Assets</h3>
+                <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
+                  <HiOutlinePlus className="w-4 h-4" />
+                  Add Asset
+                </button>
+              </div>
+
+              {task.assets && task.assets.length > 0 ? (
+                <div className="space-y-3">
+                  {task.assets.map((asset) => (
                     <div
-                      key={assignee.id}
-                      className={`flex items-center gap-3 py-3 ${
-                        index === 0 ? "pt-0" : ""
-                      }`}
+                      key={asset.id}
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
                     >
-                      {renderAvatar(assignee)}
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">
-                          {assignee.first_name || assignee.last_name
-                            ? `${assignee.first_name} ${assignee.last_name}`.trim()
-                            : assignee.username}
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <AiOutlinePaperClip className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                          {asset.file.split("/").pop()}
                         </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Uploaded by:{" "}
+                          {asset.uploaded_by.first_name ||
+                          asset.uploaded_by.last_name
+                            ? `${asset.uploaded_by.first_name} ${asset.uploaded_by.last_name}`.trim()
+                            : asset.uploaded_by.username}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          {assignee.email}
+                          {format(
+                            new Date(asset.uploaded_at),
+                            "MMM dd, yyyy 'at' HH:mm"
+                          )}
                         </p>
                       </div>
+                      <a
+                        href={asset.file}
+                        download
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <HiOutlineDownload className="w-5 h-5" />
+                      </a>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">
+                    <AiOutlinePaperClip className="w-12 h-12 mx-auto" />
+                  </div>
+                  <p className="text-gray-600">No assets attached</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Click the "Add Asset" button to attach files
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
