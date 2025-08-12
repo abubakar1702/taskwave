@@ -122,16 +122,3 @@ class ProjectActionAPIView(generics.RetrieveUpdateDestroyAPIView):
             raise NotFound("Project not found")
 
 
-# class TaskFilterAPIView(generics.ListAPIView):
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = TaskSerializer
-#     queryset = Task.objects.all()
-
-#     filterset_class = TaskFilter
-
-# class ProjectFilterAPIView(generics.ListAPIView):
-#     permission_classes = [IsAuthenticated]
-#     serializer_class = ProjectSerializer
-#     queryset = Project.objects.all()
-
-#     filterset_class = ProjectFilter

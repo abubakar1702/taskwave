@@ -1,4 +1,4 @@
-from rest_framework import status
+from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,7 +10,8 @@ from .serializers import (
     UserLoginSerializer, 
     UserInfoSerializer, 
     ChangePasswordSerializer,
-    UsernameCheckSerializer
+    UsernameCheckSerializer,
+    UserSearchSerializer
 )
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.decorators import method_decorator
@@ -28,6 +29,7 @@ from google.oauth2 import id_token
 import random
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 
 logger = logging.getLogger(__name__)
@@ -404,3 +406,28 @@ class ResetPasswordView(APIView):
                 return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({"error": "Invalid request parameters"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class UserSearchAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSearchSerializer
+    
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        if not query:
+            return User.objects.none()
+            
+        return User.objects.filter(
+            Q(username__icontains=query) |
+            Q(email__icontains=query),
+            is_active=True
+        ).exclude(id=self.request.user.id).order_by('username')[:20]
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'count': len(serializer.data),
+            'results': serializer.data
+        }, status=status.HTTP_200_OK)

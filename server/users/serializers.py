@@ -160,3 +160,21 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({'new_password': 'New password must be different from the old password.'})
 
         return attrs
+
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar_url', 'full_name')
+    
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        return None
+    
+    def get_full_name(self, obj):
+        return obj.full_name
