@@ -35,11 +35,26 @@ class CommentSerializer(serializers.ModelSerializer):
         return CommentSerializer(replies, many=True, context=self.context).data
 
 class SubtaskSerializer(serializers.ModelSerializer):
-    assigned_to = UserSerializer(read_only=True)
+    # Change this to accept UUIDs for write operations
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    
     class Meta:
         model = Subtask
         fields = ['id', 'task', 'title', 'assigned_to', 'is_completed', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'task']
+    
+    def to_representation(self, instance):
+        """Override to return full user data in GET responses"""
+        data = super().to_representation(instance)
+        if instance.assigned_to:
+            data['assigned_to'] = UserSerializer(instance.assigned_to).data
+        else:
+            data['assigned_to'] = None
+        return data
     
     def validate(self, data):
         assigned_user = data.get('assigned_to')
@@ -84,8 +99,17 @@ class ProjectSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     creator = UserSerializer(read_only=True)
     subtasks = SubtaskSerializer(many=True, required=False)
-    assignees = UserSerializer(many=True)
-    project = serializers.SerializerMethodField()
+    assignees = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=User.objects.all()
+    )
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True
+    )
+    project_title = serializers.SerializerMethodField(read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
     assets = AssetSerializer(many=True, required=False)
 
@@ -93,11 +117,55 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'title', 'description', 'creator', 'subtasks', 'assignees',
-            'project', 'priority', 'status', 'due_date', 'due_time',
+            'project','project_title', 'priority', 'status', 'due_date', 'due_time',
             'comments', 'assets', 'created_at', 'updated_at'
         ]
-    def get_project(self, obj):
+    
+    def get_project_title(self, obj):
         return obj.project.title if obj.project else None
+    
+    def create(self, validated_data):
+        subtasks_data = validated_data.pop('subtasks', [])
+        assignees_data = validated_data.pop('assignees', [])
+    
+        task = Task.objects.create(**validated_data)
+
+        if assignees_data:
+            task.assignees.set(assignees_data)
+    
+        assignee_ids = [user.id for user in assignees_data]
+        for subtask_data in subtasks_data:
+            assigned_user = subtask_data.get('assigned_to')
+            if assigned_user and assigned_user.id not in assignee_ids:
+                raise serializers.ValidationError({
+                    "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
+                })
+            Subtask.objects.create(task=task, **subtask_data)
+    
+        return task
+    
+    def update(self, instance, validated_data):
+        subtasks_data = validated_data.pop('subtasks', None)
+        assignees_data = validated_data.pop('assignees', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        if assignees_data is not None:
+            instance.assignees.set(assignees_data)
+        
+        if subtasks_data is not None:
+            instance.subtasks.all().delete()
+            for subtask_data in subtasks_data:
+                Subtask.objects.create(task=instance, **subtask_data)
+        
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['assignees'] = UserSerializer(instance.assignees.all(), many=True).data
+        return data
 
 
 class AssetSerializer(serializers.ModelSerializer):
