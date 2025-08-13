@@ -13,6 +13,8 @@ import {
 } from "react-icons/hi";
 import { AiOutlinePaperClip } from "react-icons/ai";
 import { MdEdit, MdDelete } from "react-icons/md";
+import ClipLoader from "react-spinners/ClipLoader";
+import { FiAlertCircle } from "react-icons/fi";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -143,7 +145,7 @@ const ProjectDetails = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <ClipLoader color="#3B82F6" size={32} className="mx-auto mb-4" />
           <p className="text-gray-600 text-center">
             Loading project details...
           </p>
@@ -166,19 +168,7 @@ const ProjectDetails = () => {
 
           <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
             <div className="text-red-600 mb-4">
-              <svg
-                className="mx-auto h-16 w-16"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <FiAlertCircle className="mx-auto h-16 w-16" />
             </div>
             <h2 className="text-xl font-semibold text-red-900 mb-2">
               Failed to load project

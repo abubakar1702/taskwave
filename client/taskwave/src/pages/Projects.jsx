@@ -4,6 +4,8 @@ import ProjectFilter from "../components/project/ProjectFilter";
 import { FaPlus } from "react-icons/fa6";
 import { ClipLoader } from "react-spinners";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,8 +27,8 @@ const Projects = () => {
 
         const endpoint =
           activeTab === "Created by me"
-            ? "http://127.0.0.1:8000/api/projects/?created_by_me=true"
-            : "http://127.0.0.1:8000/api/projects/";
+            ? `${API_BASE_URL}/api/projects/?created_by_me=true`
+            : `${API_BASE_URL}/api/projects/`;
 
         const response = await fetch(endpoint, {
           method: "GET",

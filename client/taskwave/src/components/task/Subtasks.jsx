@@ -1,8 +1,11 @@
 import React from "react";
 import { toast } from "react-toastify";
+import { format } from "date-fns";
 import {
   HiOutlineCheckCircle,
   HiOutlinePlus,
+  HiOutlineUser,
+  HiOutlineClock,
 } from "react-icons/hi";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -51,6 +54,35 @@ const Subtasks = ({ task, setTask }) => {
     }
   };
 
+  const renderAvatar = (user) => {
+    if (!user) return null;
+    
+    if (user.avatar) {
+      const isAbsolute = user.avatar.startsWith("http");
+      const avatarUrl = isAbsolute
+        ? user.avatar
+        : `${API_BASE_URL}${user.avatar}`;
+      return (
+        <img
+          src={avatarUrl}
+          alt={user.username}
+          className="w-6 h-6 rounded-full border border-gray-200 object-cover"
+        />
+      );
+    }
+
+    const initial =
+      user.first_name?.[0]?.toUpperCase() ||
+      user.username?.[0]?.toUpperCase() ||
+      "U";
+
+    return (
+      <div className="w-6 h-6 rounded-full border border-gray-200 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
+        {initial}
+      </div>
+    );
+  };
+
   const completedSubtasks =
     task.subtasks?.filter((subtask) => subtask.is_completed).length || 0;
   const totalSubtasks = task.subtasks?.length || 0;
@@ -88,7 +120,7 @@ const Subtasks = ({ task, setTask }) => {
             {task.subtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
               >
                 <button
                   onClick={() =>
@@ -98,7 +130,7 @@ const Subtasks = ({ task, setTask }) => {
                       task.id
                     )
                   }
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
                     subtask.is_completed
                       ? "bg-green-500 border-green-500 text-white"
                       : "border-gray-300 hover:border-green-500"
@@ -108,9 +140,10 @@ const Subtasks = ({ task, setTask }) => {
                     <HiOutlineCheckCircle className="w-3 h-3" />
                   )}
                 </button>
-                <div className="flex-1">
+                
+                <div className="flex-1 min-w-0">
                   <h4
-                    className={`text-sm font-medium ${
+                    className={`text-sm font-medium mb-2 ${
                       subtask.is_completed
                         ? "line-through text-gray-500"
                         : "text-gray-900"
@@ -118,15 +151,41 @@ const Subtasks = ({ task, setTask }) => {
                   >
                     {subtask.title}
                   </h4>
-                  {subtask.assigned_to && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Assigned to:{" "}
-                      {subtask.assigned_to.first_name ||
-                      subtask.assigned_to.last_name
-                        ? `${subtask.assigned_to.first_name} ${subtask.assigned_to.last_name}`.trim()
-                        : subtask.assigned_to.username}
-                    </p>
-                  )}
+                  
+                  <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+                    {/* Assignment Information */}
+                    {subtask.assigned_to ? (
+                      <div className="flex items-center gap-1.5">
+                        {renderAvatar(subtask.assigned_to)}
+                        <span>
+                          <span className="font-medium text-gray-700">
+                            {subtask.assigned_to.first_name ||
+                            subtask.assigned_to.last_name
+                              ? `${subtask.assigned_to.first_name} ${subtask.assigned_to.last_name}`.trim()
+                              : subtask.assigned_to.username}
+                          </span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-full border border-dashed border-gray-300 flex items-center justify-center">
+                          <HiOutlineUser className="w-3 h-3 text-gray-400" />
+                        </div>
+                        <span className="text-gray-400 italic">Unassigned</span>
+                      </div>
+                    )}
+                    
+                    {/* Creation/Assignment Date */}
+                    <div className="flex items-center gap-1.5">
+                      <HiOutlineClock className="w-3 h-3 text-gray-400" />
+                      <span>
+                        Created{" "}
+                        <span className="font-medium text-gray-700">
+                          {format(new Date(subtask.created_at), "MMM dd, yyyy 'at' HH:mm")}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}

@@ -17,7 +17,7 @@ const TaskCard = ({
   created_at,
   creator = null,
   status,
-  project,
+  project_title,
   assets = [],
 }) => {
   const navigate = useNavigate();
@@ -114,10 +114,10 @@ const TaskCard = ({
           </span>
         </div>
 
-        {project && (
+        {project_title && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
             <HiOutlineFolderOpen className="w-3 h-3" />
-            <span>{project}</span>
+            <span>{project_title}</span>
           </div>
         )}
       </div>

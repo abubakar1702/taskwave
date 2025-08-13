@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { FaPlus, FaExclamationCircle, FaClipboardList } from "react-icons/fa";
+import { ClipLoader } from "react-spinners";
 import TaskCard from "../components/task/TaskCard";
 import { ToastContainer, toast } from "react-toastify";
 import TaskFilter from "../components/task/TaskFilter";
-import { FaPlus } from "react-icons/fa6";
-import { ClipLoader } from "react-spinners";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -167,9 +168,11 @@ const Tasks = () => {
             </h1>
           </div>
           <div>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              New Task <FaPlus className="inline-block ml-1" />
-            </button>
+            <Link to={"/new-task/"}>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                New Task <FaPlus className="inline-block ml-1" />
+              </button>
+            </Link>
           </div>
         </div>
 
@@ -187,19 +190,7 @@ const Tasks = () => {
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <div className="text-red-600 mb-4">
-              <svg
-                className="mx-auto h-12 w-12"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <FaExclamationCircle className="mx-auto h-12 w-12" />
             </div>
             <h3 className="text-lg font-medium text-red-900 mb-2">
               Failed to load tasks
@@ -215,19 +206,7 @@ const Tasks = () => {
         ) : tasks.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
-              <svg
-                className="mx-auto h-16 w-16"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                />
-              </svg>
+              <FaClipboardList className="mx-auto h-16 w-16" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No tasks found

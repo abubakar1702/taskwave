@@ -217,10 +217,10 @@ const TaskDetails = () => {
                   >
                     {task.priority} Priority
                   </span>
-                  {task.project && (
+                  {task.project_title && (
                     <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-200 text-indigo-600 bg-indigo-50">
                       <HiOutlineFolderOpen className="w-4 h-4" />
-                      {task.project}
+                      {task.project_title}
                     </span>
                   )}
                 </div>
