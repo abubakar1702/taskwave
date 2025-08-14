@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiUser, FiFileText, FiAlertCircle } from "react-icons/fi";
 import UserSearch from "../components/new task/UserSearch";
@@ -137,7 +137,7 @@ const NewTask = () => {
 
   const handleRemoveSubtaskAssignee = (index) => {
     const newSubtasks = [...formData.subtasks];
-    newSubtasks[index].assigned_to = null;
+    newSubtasks[index].assignedTo = null;
     setFormData((prev) => ({
       ...prev,
       subtasks: newSubtasks,
@@ -147,6 +147,7 @@ const NewTask = () => {
   const validateForm = () => {
     const errors = {};
     let isValid = true;
+
     if (!formData.title.trim()) {
       errors.title = "Task title is required";
       isValid = false;
@@ -154,15 +155,18 @@ const NewTask = () => {
       errors.title = "Title cannot exceed 200 characters";
       isValid = false;
     }
+
     if (!formData.description.trim()) {
       errors.description = "Task description is required";
       isValid = false;
     }
+
     const validPriorities = ["Low", "Medium", "High", "Urgent"];
     if (!validPriorities.includes(formData.priority)) {
       errors.priority = "Invalid priority selected";
       isValid = false;
     }
+
     if (formData.dueDate) {
       const selectedDate = new Date(formData.dueDate);
       const today = new Date();
@@ -172,6 +176,7 @@ const NewTask = () => {
         isValid = false;
       }
     }
+
     formData.subtasks.forEach((subtask, index) => {
       if (!subtask.title.trim()) {
         errors[`subtask_${index}`] = "Subtask title is required";
@@ -181,6 +186,7 @@ const NewTask = () => {
           "Subtask title cannot exceed 200 characters";
         isValid = false;
       }
+
       if (
         subtask.assignedTo &&
         !formData.assignedTo.some((u) => u.id === subtask.assignedTo.id)
@@ -190,6 +196,7 @@ const NewTask = () => {
         isValid = false;
       }
     });
+
     setValidationErrors(errors);
     return isValid;
   };
@@ -197,17 +204,21 @@ const NewTask = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
     setIsCreating(true);
     setError("");
+
     try {
       const token =
         localStorage.getItem("accessToken") ||
         sessionStorage.getItem("accessToken");
+
       if (!token) {
         setError("Authentication required. Please log in again.");
         setIsCreating(false);
         return;
       }
+
       const taskData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -223,6 +234,8 @@ const NewTask = () => {
           is_completed: false,
         })),
       };
+
+      console.log("Task data being sent:", taskData);
 
       const response = await fetch(`${API_BASE_URL}/api/tasks/`, {
         method: "POST",
@@ -245,6 +258,7 @@ const NewTask = () => {
               : null,
           })),
         };
+
         window.dispatchEvent(
           new CustomEvent("taskCreated", { detail: formattedTask })
         );

@@ -49,7 +49,6 @@ const UserSearch = ({
 
         if (response.ok) {
           const { results } = await response.json();
-          // Filter out already selected users
           const filteredResults = results.filter(
             (user) => !selectedUsers.some((selected) => selected.id === user.id)
           );
@@ -177,7 +176,7 @@ const UserSearch = ({
             >
               {renderAvatar(user)}
               <span className="ml-1">
-                {user.first_name && user.last_name
+                {user.first_name || user.last_name
                   ? `${user.first_name} ${user.last_name}`
                   : user.username}
               </span>

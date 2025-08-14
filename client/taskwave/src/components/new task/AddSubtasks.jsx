@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FiFileText, FiX, FiAlertCircle } from "react-icons/fi";
 import { FaPlus } from "react-icons/fa";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 const AddSubtasks = ({
   subtasks,
@@ -13,19 +14,29 @@ const AddSubtasks = ({
 }) => {
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
+  const { currentUser } = useCurrentUser();
 
   const handleAddSubtask = () => {
     if (!newSubtask.trim()) {
       return;
     }
-    const selectedUserId = newSubtaskAssignee;
-    const selectedUser = selectedUserId
-      ? assignedUsers.find((user) => user.id === selectedUserId)
-      : null;
+    // const selectedUserId = newSubtaskAssignee;
+    // const selectedUser = selectedUserId
+    //   ? assignedUsers.find((user) => user.id === selectedUserId)
+    //   : null;
+
+    let selectedUser = null;
+
+    if (newSubtaskAssignee) {
+      selectedUser =
+        assignedUsers.find((user) => user.id === newSubtaskAssignee) ||
+        (currentUser?.id === newSubtaskAssignee ? currentUser : null);
+    }
+    console.log("Selected user for new subtask:", selectedUser);
 
     onAddSubtask({
       title: newSubtask.trim(),
-      assigned_to: selectedUser || null,
+      assignedTo: selectedUser || null,
       is_completed: false,
     });
 
@@ -103,15 +114,15 @@ const AddSubtasks = ({
               </button>
             </div>
 
-            {subtask.assigned_to && (
+            {subtask.assignedTo && (
               <div className="mt-2">
                 <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                  {renderAssigneeAvatar(subtask.assigned_to)}
+                  {renderAssigneeAvatar(subtask.assignedTo)}
                   <span className="ml-1">
-                    {subtask.assigned_to.first_name &&
-                    subtask.assigned_to.last_name
-                      ? `${subtask.assigned_to.first_name} ${subtask.assigned_to.last_name}`
-                      : subtask.assigned_to.username}
+                    {subtask.assignedTo.first_name ||
+                    subtask.assignedTo.last_name
+                      ? `${subtask.assignedTo.first_name} ${subtask.assignedTo.last_name}`
+                      : subtask.assignedTo.username}
                   </span>
                   <button
                     type="button"
@@ -165,24 +176,37 @@ const AddSubtasks = ({
             </p>
           )}
 
-          {assignedUsers.length > 0 && (
-            <div className="mt-3">
-              <select
-                value={newSubtaskAssignee}
-                onChange={(e) => setNewSubtaskAssignee(e.target.value)}
-                className="block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg bg-white"
-              >
-                <option value="">Assign to (optional)</option>
-                {assignedUsers.map((user) => (
+          <div className="mt-3">
+            <select
+              value={newSubtaskAssignee}
+              onChange={(e) => setNewSubtaskAssignee(e.target.value)}
+              className="block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg bg-white"
+            >
+              <option value="">Assign to (optional)</option>
+
+              {currentUser && (
+                <option value={currentUser.id}>
+                  {currentUser.first_name || currentUser.last_name
+                    ? `${currentUser.first_name || ""} ${
+                        currentUser.last_name || ""
+                      } - (${currentUser.email})`
+                    : currentUser.username}
+                </option>
+              )}
+
+              {assignedUsers
+                .filter((user) => user.id !== currentUser?.id)
+                .map((user) => (
                   <option key={user.id} value={user.id}>
-                    {user.first_name && user.last_name
-                      ? `${user.first_name} ${user.last_name}`
+                    {user.first_name || user.last_name
+                      ? `${user.first_name || ""} ${user.last_name || ""} - (${
+                          user.email
+                        })`
                       : user.username}
                   </option>
                 ))}
-              </select>
-            </div>
-          )}
+            </select>
+          </div>
         </div>
       </div>
     </div>

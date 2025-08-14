@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
 import {
@@ -7,10 +7,15 @@ import {
   HiOutlineUser,
   HiOutlineClock,
 } from "react-icons/hi";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const Subtasks = ({ task, setTask }) => {
+  //const [currentUser, setCurrentUser] = useState(null);
+  const { currentUser } = useCurrentUser();
+
   const getAccessToken = () => {
     return (
       localStorage.getItem("accessToken") ||
@@ -18,9 +23,48 @@ const Subtasks = ({ task, setTask }) => {
     );
   };
 
-  const toggleSubtaskCompletion = async (subtaskId, currentStatus, taskId) => {
+  // useEffect(() => {
+  //   const fetchCurrentUser = async () => {
+  //     try {
+  //       const accessToken = getAccessToken();
+  //       if (!accessToken) return;
+
+  //       const response = await fetch(`${API_BASE_URL}/api/users/me/`, {
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //           Authorization: `Bearer ${accessToken}`,
+  //         },
+  //       });
+
+  //       if (response.ok) {
+  //         const userData = await response.json();
+  //         setCurrentUser(userData);
+  //         console.log("Current user fetched:", currentUser);
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to fetch current user:", error);
+  //     }
+  //   };
+
+  //   fetchCurrentUser();
+  // }, []);
+
+  const toggleSubtaskCompletion = async (
+    subtaskId,
+    currentStatus,
+    taskId,
+    assignedTo
+  ) => {
     try {
       const accessToken = getAccessToken();
+      console.log(assignedTo.id !== currentUser?.id);
+      console.log("Assigned to subtask: ", assignedTo.id);
+      console.log("Current user ID: ", currentUser?.id);
+
+      if (!assignedTo || assignedTo.id !== currentUser?.id) {
+        toast.error("You can only update subtasks assigned to you");
+        return;
+      }
 
       const response = await fetch(
         `${API_BASE_URL}/api/tasks/${taskId}/subtask/${subtaskId}/`,
@@ -56,7 +100,7 @@ const Subtasks = ({ task, setTask }) => {
 
   const renderAvatar = (user) => {
     if (!user) return null;
-    
+
     if (user.avatar) {
       const isAbsolute = user.avatar.startsWith("http");
       const avatarUrl = isAbsolute
@@ -120,14 +164,15 @@ const Subtasks = ({ task, setTask }) => {
             {task.subtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
+                className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
               >
                 <button
                   onClick={() =>
                     toggleSubtaskCompletion(
                       subtask.id,
                       subtask.is_completed,
-                      task.id
+                      task.id,
+                      subtask.assigned_to
                     )
                   }
                   className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
@@ -140,7 +185,7 @@ const Subtasks = ({ task, setTask }) => {
                     <HiOutlineCheckCircle className="w-3 h-3" />
                   )}
                 </button>
-                
+
                 <div className="flex-1 min-w-0">
                   <h4
                     className={`text-sm font-medium mb-2 ${
@@ -151,9 +196,8 @@ const Subtasks = ({ task, setTask }) => {
                   >
                     {subtask.title}
                   </h4>
-                  
+
                   <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-                    {/* Assignment Information */}
                     {subtask.assigned_to ? (
                       <div className="flex items-center gap-1.5">
                         {renderAvatar(subtask.assigned_to)}
@@ -174,14 +218,16 @@ const Subtasks = ({ task, setTask }) => {
                         <span className="text-gray-400 italic">Unassigned</span>
                       </div>
                     )}
-                    
-                    {/* Creation/Assignment Date */}
+
                     <div className="flex items-center gap-1.5">
                       <HiOutlineClock className="w-3 h-3 text-gray-400" />
                       <span>
                         Created{" "}
                         <span className="font-medium text-gray-700">
-                          {format(new Date(subtask.created_at), "MMM dd, yyyy 'at' HH:mm")}
+                          {format(
+                            new Date(subtask.created_at),
+                            "MMM dd, yyyy 'at' HH:mm"
+                          )}
                         </span>
                       </span>
                     </div>
