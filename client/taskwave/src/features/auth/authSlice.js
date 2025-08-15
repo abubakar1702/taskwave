@@ -2,35 +2,51 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 const getActiveStorage = () => {
-  if (localStorage.getItem("accessToken")) return localStorage;
-  if (sessionStorage.getItem("accessToken")) return sessionStorage;
+  const storageSources = [localStorage, sessionStorage];
+  for (const storage of storageSources) {
+    if (storage.getItem("accessToken")) {
+      return storage;
+    }
+  }
   return null;
 };
 
+const clearAllAuthStorage = () => {
+  ["accessToken", "refreshToken", "user"].forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+};
 
 const normalizeUserData = (userData) => {
   if (!userData) return null;
-  
+
+  const firstName = userData.firstName || userData.first_name || "";
+  const lastName = userData.lastName || userData.last_name || "";
+  const name = userData.name || `${firstName} ${lastName}`.trim() || "User";
+
+  const initial = name.trim().charAt(0).toUpperCase() || "U";
+
   return {
     id: userData.id,
     email: userData.email,
     username: userData.username,
-    firstName: userData.firstName || userData.first_name || '',
-    lastName: userData.lastName || userData.last_name || '',
-    name: userData.name || `${userData.firstName || userData.first_name || ''} ${userData.lastName || userData.last_name || ''}`.trim() || 'User',
+    firstName,
+    lastName,
+    name,
+    initial,
+    avatar: userData.avatar || userData.avatar_url || null,
     ...userData,
   };
 };
 
 const getUserFromStorage = () => {
-  const localStorage_user = localStorage.getItem("user");
-  const sessionStorage_user = sessionStorage.getItem("user");
-  const userString = localStorage_user || sessionStorage_user;
+  const storage = getActiveStorage();
+  const userString = storage?.getItem("user");
 
   if (userString) {
     try {
-      const userData = JSON.parse(userString);
-      return normalizeUserData(userData);
+      return normalizeUserData(JSON.parse(userString));
     } catch (error) {
       console.error("Error parsing user data:", error);
       return null;
@@ -39,6 +55,32 @@ const getUserFromStorage = () => {
   return null;
 };
 
+export const fetchCurrentUser = createAsyncThunk(
+  "auth/fetchCurrentUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      const API_BASE_URL =
+        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const storage = getActiveStorage();
+      const accessToken = storage?.getItem("accessToken");
+
+      if (!accessToken) throw new Error("No access token found");
+
+      const response = await axios.get(`${API_BASE_URL}/api/users/me/`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        withCredentials: true,
+      });
+
+      const normalizedUser = normalizeUserData(response.data);
+      storage?.setItem("user", JSON.stringify(normalizedUser));
+      return normalizedUser;
+    } catch (error) {
+      if (error.response?.status === 401) clearAllAuthStorage();
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 export const logoutUser = createAsyncThunk(
   "auth/logout",
   async (_, { rejectWithValue }) => {
@@ -46,44 +88,33 @@ export const logoutUser = createAsyncThunk(
       const API_BASE_URL =
         import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
       const storage = getActiveStorage();
-      const accessToken = storage?.getItem("accessToken");
       const refreshToken = storage?.getItem("refreshToken");
 
-      console.log("Logging out...");
-      console.log("Access token:", accessToken);
-      console.log("Refresh token:", refreshToken);
-
-      if (accessToken && refreshToken) {
+      if (refreshToken) {
         await axios.post(
           `${API_BASE_URL}/api/users/logout/`,
           { refresh: refreshToken },
           {
             headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
+              Authorization: `Bearer ${storage?.getItem("accessToken")}`,
             },
             withCredentials: true,
           }
         );
       }
 
-      localStorage.clear();
-      sessionStorage.clear();
-
+      clearAllAuthStorage();
       return true;
     } catch (error) {
-      console.error("Logout error:", error.response?.data || error.message);
-
-      localStorage.clear();
-      sessionStorage.clear();
-
-      return true;
+      clearAllAuthStorage();
+      return rejectWithValue(error.response?.data?.message || error.message);
     }
   }
 );
 
 const initialState = {
   user: getUserFromStorage(),
+  isAuthenticated: !!getActiveStorage()?.getItem("accessToken"),
   isLoading: false,
   error: null,
 };
@@ -99,30 +130,38 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    logout: (state) => {
-      state.user = null;
-      state.error = null;
-      state.isLoading = false;
-    },
   },
   extraReducers: (builder) => {
     builder
-      .addCase(logoutUser.pending, (state) => {
+      .addCase(fetchCurrentUser.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
+      .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.isAuthenticated = true;
+        state.isLoading = false;
+      })
+      .addCase(fetchCurrentUser.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+        state.isAuthenticated = false;
+        state.user = null;
+      })
+      .addCase(logoutUser.pending, (state) => {
+        state.isLoading = true;
+      })
       .addCase(logoutUser.fulfilled, (state) => {
         state.user = null;
+        state.isAuthenticated = false;
         state.isLoading = false;
-        state.error = null;
       })
       .addCase(logoutUser.rejected, (state, action) => {
-        state.user = null;
         state.isLoading = false;
         state.error = action.payload;
       });
   },
 });
 
-export const { setUser, clearError, logout } = authSlice.actions;
+export const { setUser, clearError } = authSlice.actions;
 export default authSlice.reducer;
