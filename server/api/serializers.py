@@ -35,7 +35,6 @@ class CommentSerializer(serializers.ModelSerializer):
         return CommentSerializer(replies, many=True, context=self.context).data
 
 class SubtaskSerializer(serializers.ModelSerializer):
-    # Change this to accept UUIDs for write operations
     assigned_to = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=False,
@@ -48,7 +47,6 @@ class SubtaskSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at', 'task']
     
     def to_representation(self, instance):
-        """Override to return full user data in GET responses"""
         data = super().to_representation(instance)
         if instance.assigned_to:
             data['assigned_to'] = UserSerializer(instance.assigned_to).data
@@ -59,13 +57,34 @@ class SubtaskSerializer(serializers.ModelSerializer):
     def validate(self, data):
         assigned_user = data.get('assigned_to')
         task = self.context.get('task')
+        request = self.context.get('request')
 
-        if task and assigned_user and assigned_user not in task.assignees.all():
-            raise serializers.ValidationError({
-                "assigned_to": "This user is not assigned to the parent task."
-            })
+        if task and assigned_user:
+            if (assigned_user not in task.assignees.all() and 
+                assigned_user != task.creator):
+                raise serializers.ValidationError({
+                    "assigned_to": "This user is not assigned to the parent task and is not the task creator."
+                })
 
         return data
+
+    def update(self, instance, validated_data):
+        assigned_to = validated_data.get('assigned_to')
+        
+        if assigned_to is not None:
+            if isinstance(assigned_to, list):
+                if len(assigned_to) > 0:
+                    try:
+                        user = User.objects.get(id=assigned_to[0])
+                        validated_data['assigned_to'] = user
+                    except User.DoesNotExist:
+                        raise serializers.ValidationError({
+                            "assigned_to": "Invalid user ID provided."
+                        })
+                else:
+                    validated_data['assigned_to'] = None
+        
+        return super().update(instance, validated_data)
 
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -133,13 +152,16 @@ class TaskSerializer(serializers.ModelSerializer):
         if assignees_data:
             task.assignees.set(assignees_data)
     
+        current_user = self.context['request'].user
         assignee_ids = [user.id for user in assignees_data]
+        
         for subtask_data in subtasks_data:
             assigned_user = subtask_data.get('assigned_to')
-            if assigned_user and assigned_user.id not in assignee_ids:
-                raise serializers.ValidationError({
-                    "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
-                })
+            if assigned_user:
+                if assigned_user.id not in assignee_ids and assigned_user != current_user:
+                    raise serializers.ValidationError({
+                        "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
+                    })
             Subtask.objects.create(task=task, **subtask_data)
     
         return task
@@ -157,7 +179,18 @@ class TaskSerializer(serializers.ModelSerializer):
         
         if subtasks_data is not None:
             instance.subtasks.all().delete()
+            
+            current_user = self.context['request'].user
+            current_assignees = list(instance.assignees.all()) if assignees_data is None else assignees_data
+            assignee_ids = [user.id for user in current_assignees]
+            
             for subtask_data in subtasks_data:
+                assigned_user = subtask_data.get('assigned_to')
+                if assigned_user:
+                    if assigned_user.id not in assignee_ids and assigned_user != current_user:
+                        raise serializers.ValidationError({
+                            "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
+                        })
                 Subtask.objects.create(task=instance, **subtask_data)
         
         return instance

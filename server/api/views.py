@@ -75,6 +75,7 @@ class TaskActionAPIView(generics.RetrieveUpdateDestroyAPIView):
 class SubtaskAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = SubtaskSerializer
+    
 
     def get_object(self):
         task = get_object_or_404(
@@ -93,6 +94,39 @@ class SubtaskAPIView(generics.RetrieveUpdateDestroyAPIView):
             'request': self.request,
             'task': self.get_object().task
         }
+
+    def perform_update(self, serializer):
+        subtask = self.get_object()
+        
+        if (subtask.assigned_to and 
+            subtask.assigned_to != self.request.user and 
+            subtask.task.creator != self.request.user):
+            raise PermissionDenied("You can only update your own subtasks or if you're the task creator")
+        
+        serializer.save()
+
+class SubtaskListCreateAPIView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SubtaskSerializer
+
+    def get_task(self):
+        return get_object_or_404(
+            Task.objects.filter(
+                (
+                    models.Q(creator=self.request.user) |
+                    models.Q(assignees__in=[self.request.user]) |
+                    models.Q(project__members__in=[self.request.user])
+                ) & models.Q(id=self.kwargs['task_id'])
+            ).distinct()
+        )
+
+    def get_queryset(self):
+        task = self.get_task()
+        return Subtask.objects.filter(task=task).order_by("created_at")
+
+    def perform_create(self, serializer):
+        task = self.get_task()
+        serializer.save(task=task)
 
 class ProjectAPIView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
