@@ -43,6 +43,10 @@ const Login = () => {
         storage.setItem("refreshToken", data.refresh);
       }
 
+      const avatarUrl = data.user.avatar 
+      ? `${API_BASE_URL}${data.user.avatar}`
+      : null;
+
       storage.setItem(
         "user",
         JSON.stringify({
@@ -51,6 +55,7 @@ const Login = () => {
           name: `${data.user.first_name} ${data.user.last_name}`,
           firstName: data.user.first_name,
           lastName: data.user.last_name,
+          avatar: data.user.avatar,
         })
       );
 
