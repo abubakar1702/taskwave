@@ -87,25 +87,16 @@ class Task(models.Model):
 class Asset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.FileField(upload_to='assets/', validators=[validate_file_size])
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assets', null=True, blank=True)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='assets', null=True, blank=True)
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_assets')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    (models.Q(task__isnull=False) & models.Q(project__isnull=True)) |
-                    (models.Q(task__isnull=True) & models.Q(project__isnull=False))
-                ),
-                name='asset_belongs_to_either_task_or_project'
-            )
-        ]
+    def delete(self, *args, **kwargs):
+        if self.file:
+            self.file.delete(save=False)
+        super().delete(*args, **kwargs)
 
-    def __str__(self):
-        target = self.task or self.project
-        return f"Asset for {target}"
 
 class Subtask(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
