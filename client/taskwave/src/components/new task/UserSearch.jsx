@@ -1,20 +1,87 @@
-import React, { useState, useEffect, useRef } from "react";
-import { FiUser, FiX, FiSearch, FiChevronDown, FiAlertCircle } from "react-icons/fi";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import axios from "axios";
+import { FiSearch, FiChevronDown, FiAlertCircle } from "react-icons/fi";
+import { useAppSelector, useAppDispatch } from "../../app/hooks";
+import { selectUser } from "../../features/task detail/taskDetailSlice";
+import UserInitial from "../auth/UserInitial";
 
-const UserSearch = ({
-  selectedUsers = [],
-  onSelectUser,
-  onRemoveUser,
-  projectId = null,
-  placeholder = "Search by using email or username...",
-  disabled = false,
-  error = null,
-}) => {
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
+const getAuthHeaders = () => {
+  const token =
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const UserSearch = ({ disabled = false }) => {
+  const dispatch = useAppDispatch();
+  const { items, task } = useAppSelector((state) => state.taskDetail);
+  const [currentAssignees, setCurrentAssignees] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [availableUsers, setAvailableUsers] = useState([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const dropdownRef = useRef(null);
+  const taskId = task?.id;
+
+  const fetchCurrentAssignees = useCallback(async () => {
+    if (!taskId) return;
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/task/${taskId}/assignees/`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      setCurrentAssignees(response.data || []);
+    } catch (err) {
+      console.error("Failed to fetch assignees:", err);
+    }
+  }, [taskId]);
+
+  let projectId = null;
+  if (task?.project) {
+    if (typeof task.project === "string") {
+      projectId = task.project;
+    } else if (task.project.id) {
+      projectId = task.project.id;
+    }
+  }
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (searchQuery.length < 3) {
+        setAvailableUsers([]);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        await fetchCurrentAssignees();
+
+        const params = { q: searchQuery };
+        if (projectId) params.project_id = projectId;
+
+        const response = await axios.get(`${API_BASE_URL}/api/users/search/`, {
+          params,
+          headers: getAuthHeaders(),
+        });
+
+        setAvailableUsers(response.data.results || response.data);
+      } catch (err) {
+        setError(err.response?.data || err.message || "Failed to fetch users");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [searchQuery, projectId, fetchCurrentAssignees]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -26,78 +93,44 @@ const UserSearch = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const searchUsers = async () => {
-      if (!searchQuery.trim()) {
-        setAvailableUsers([]);
-        return;
-      }
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === "Escape") setIsDropdownOpen(false);
+  }, []);
 
-      setLoading(true);
-      try {
-        const token =
-          localStorage.getItem("accessToken") ||
-          sessionStorage.getItem("accessToken");
-        const response = await fetch(
-          `http://127.0.0.1:8000/api/users/search/?q=${encodeURIComponent(
-            searchQuery
-          )}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (response.ok) {
-          const { results } = await response.json();
-          const filteredResults = results.filter(
-            (user) => !selectedUsers.some((selected) => selected.id === user.id)
-          );
-          setAvailableUsers(filteredResults);
-        } else {
-          console.error("Failed to search users");
-          setAvailableUsers([]);
-        }
-      } catch (error) {
-        console.error("Error searching users:", error);
-        setAvailableUsers([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(searchUsers, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery, selectedUsers]);
-
-  const handleSelectUser = (user) => {
-    onSelectUser(user);
+  const handleSelect = (user) => {
+    dispatch(selectUser(user));
     setSearchQuery("");
     setIsDropdownOpen(false);
   };
 
-  const renderAvatar = (user) => {
-    if (user?.avatar_url) {
-      return (
-        <img
-          src={user.avatar_url}
-          alt={user.username}
-          className="w-6 h-6 rounded-full border border-white shadow object-cover"
-        />
-      );
-    }
-    const initial =
-      user.first_name?.[0]?.toUpperCase() ||
-      user.username?.[0]?.toUpperCase() ||
-      "U";
-    return (
-      <div className="w-6 h-6 rounded-full border border-white shadow bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
-        {initial}
-      </div>
-    );
+  const handleInputChange = (e) => {
+    setSearchQuery(e.target.value);
+    setIsDropdownOpen(true);
+  };
+
+  const handleInputFocus = () => {
+    if (searchQuery) setIsDropdownOpen(true);
+  };
+
+  const filteredUsers = availableUsers.filter(
+    (user) =>
+      !items.some((selectedUser) => selectedUser.id === user.id) &&
+      !currentAssignees.some((assignee) => assignee.id === user.id)
+  );
+
+  const getUserDisplayName = (user) =>
+    user.first_name && user.last_name
+      ? `${user.first_name} ${user.last_name}`
+      : user.username;
+
+  const getAvatarUrl = (user) => {
+    if (!user.avatar) return null;
+    const isAbsolute = user.avatar.startsWith("http");
+    return isAbsolute ? user.avatar : `${API_BASE_URL}${user.avatar}`;
   };
 
   return (
-    <div className="space-y-4 relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           {loading ? (
@@ -106,26 +139,29 @@ const UserSearch = ({
             <FiSearch className="h-5 w-5 text-gray-400" />
           )}
         </div>
+
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setIsDropdownOpen(true)}
+          onChange={handleInputChange}
+          onFocus={handleInputFocus}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
-          className={`block w-full pl-10 pr-3 py-3 border ${
-            error ? "border-red-300 bg-red-50" : "border-gray-200 bg-gray-50"
-          } rounded-lg leading-5 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm hover:bg-white`}
-          placeholder={placeholder}
+          placeholder="Search by name, email, or username..."
+          className="block w-full pl-10 pr-10 py-3 border border-gray-200 bg-gray-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed sm:text-sm"
+          autoComplete="off"
         />
+
         <button
           type="button"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="absolute inset-y-0 right-0 pr-3 flex items-center"
+          className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={disabled}
+          aria-label="Toggle dropdown"
         >
           <FiChevronDown
-            className={`h-5 w-5 text-gray-400 transition-transform ${
-              isDropdownOpen ? "transform rotate-180" : ""
+            className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+              isDropdownOpen ? "rotate-180" : ""
             }`}
           />
         </button>
@@ -133,63 +169,60 @@ const UserSearch = ({
 
       {error && (
         <p className="mt-1 text-sm text-red-600 flex items-center">
-          <FiAlertCircle className="mr-1" />
-          {error}
+          <FiAlertCircle className="mr-1 h-4 w-4" />
+          {typeof error === "string" ? error : "Failed to search users"}
         </p>
       )}
 
       {isDropdownOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-y-auto focus:outline-none sm:text-sm">
-          {availableUsers.length === 0 ? (
-            <div className="px-4 py-2 text-gray-500">
-              {loading ? "Searching..." : "No team members found"}
+        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-y-auto border border-gray-200 sm:text-sm">
+          {searchQuery.length < 3 ? (
+            <div className="px-4 py-3 text-gray-500 text-center">
+              Type at least 3 characters to search
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-4 py-3 text-gray-500 text-center">
+              {loading ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                  <span>Searching...</span>
+                </div>
+              ) : (
+                "No team members found"
+              )}
             </div>
           ) : (
-            availableUsers.map((user) => (
+            filteredUsers.map((user) => (
               <button
                 key={user.id}
                 type="button"
-                onClick={() => handleSelectUser(user)}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-3"
+                onClick={() => handleSelect(user)}
+                className="w-full text-left px-4 py-3 hover:bg-gray-100 flex items-center space-x-3 transition-colors focus:bg-gray-100 focus:outline-none"
+                disabled={disabled}
               >
-                {renderAvatar(user)}
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {user.first_name && user.last_name
-                      ? `${user.first_name} ${user.last_name}`
-                      : user.username}
+                {getAvatarUrl(user) ? (
+                  <img
+                    src={getAvatarUrl(user)}
+                    alt={user.username}
+                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                  />
+                ) : (
+                  <UserInitial
+                    user={user.first_name || user.username}
+                    className="w-8 h-8 text-sm"
+                  />
+                )}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="font-medium truncate text-gray-900">
+                    {getUserDisplayName(user)}
                   </span>
-                  <span className="text-sm text-gray-500">{user.email}</span>
+                  <span className="text-sm text-gray-500 truncate">
+                    {user.email}
+                  </span>
                 </div>
               </button>
             ))
           )}
-        </div>
-      )}
-
-      {selectedUsers.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedUsers.map((user) => (
-            <div
-              key={user.id}
-              className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-            >
-              {renderAvatar(user)}
-              <span className="ml-1">
-                {user.first_name || user.last_name
-                  ? `${user.first_name} ${user.last_name}`
-                  : user.username}
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemoveUser(user.id)}
-                className="ml-1.5 inline-flex items-center justify-center rounded-full h-4 w-4 hover:bg-blue-200 focus:outline-none"
-                disabled={disabled}
-              >
-                <FiX className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
         </div>
       )}
     </div>

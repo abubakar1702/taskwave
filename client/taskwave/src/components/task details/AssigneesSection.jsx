@@ -1,97 +1,113 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { useDispatch, useSelector } from "react-redux";
 import { FaUsers } from "react-icons/fa";
 import { IoCloseOutline } from "react-icons/io5";
+import { HiOutlinePlus } from "react-icons/hi";
+
 import UserInitial from "../auth/UserInitial";
 import AddAssigneeModal from "./AddAssigneeModal";
 import ConfirmationModal from "../modals/ConfirmationModal";
-import { HiOutlinePlus } from "react-icons/hi";
-import { useApi } from "../../hooks/useApi";
+
+import {
+  addAssignees,
+  removeAssignee,
+  setAssignees,
+} from "../../features/task detail/taskDetailSlice";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-const AssigneesSection = ({
-  assignees,
-  taskCreator,
-  taskId,
-  currentUser,
-  onAssigneesUpdate,
-  disabled = false,
-}) => {
+const getAuthHeaders = () => {
+  const token =
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken");
+  return {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
+const AssigneesSection = () => {
+  const dispatch = useDispatch();
+  const task = useSelector((state) => state.taskDetail.task);
+  const currentUser = useSelector((state) => state.auth.user);
+
+  const [assignees, setAssigneesLocal] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [requestBody, setRequestBody] = useState(null);
-  const [deleteRequest, setDeleteRequest] = useState(null);
-  const [pendingAssignees, setPendingAssignees] = useState([]);
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     userId: null,
     userName: "",
   });
 
-  // Add Assignees
-  const {
-    data: addedData,
-    loading: adding,
-    error: addError,
-  } = useApi(
-    requestBody ? `${API_BASE_URL}/api/task/${taskId}/assignees/` : null,
-    "POST",
-    requestBody,
-    [requestBody]
-  );
+  const taskId = task?.id;
+  const taskCreator = task?.creator?.id;
+
+  const fetchAssignees = async () => {
+    if (!taskId) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/task/${taskId}/assignees/`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      setAssigneesLocal(response.data || []);
+    } catch (err) {
+      setError(
+        err.response?.data || err.message || "Failed to fetch assignees"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (addedData && pendingAssignees.length > 0) {
-      const updatedAssignees = [...assignees, ...pendingAssignees];
-      onAssigneesUpdate(updatedAssignees);
-      setIsModalOpen(false);
-      setRequestBody(null);
-      setPendingAssignees([]);
-    }
-  }, [addedData, pendingAssignees, assignees, onAssigneesUpdate]);
+    fetchAssignees();
+  }, [taskId]);
 
-  const handleAddAssignees = (selectedUsers) => {
+  const handleAddAssignees = async (selectedUsers) => {
     if (!taskId || selectedUsers.length === 0) return;
 
-    setPendingAssignees(selectedUsers);
     const assigneeIds = selectedUsers.map((u) => u.id);
-    setRequestBody({ assignees: assigneeIds });
-  };
 
-  // Remove Assignee
-  const {
-    data: removedData,
-    loading: removing,
-    error: removeError,
-  } = useApi(
-    deleteRequest
-      ? `${API_BASE_URL}/api/task/${taskId}/assignees/${deleteRequest}/remove/`
-      : null,
-    "DELETE",
-    null,
-    [deleteRequest]
-  );
-
-  useEffect(() => {
-    if (removedData && deleteRequest) {
-      const updatedAssignees = assignees.filter((a) => a.id !== deleteRequest);
-      onAssigneesUpdate(updatedAssignees);
-      setDeleteRequest(null);
-      setConfirmationModal({ isOpen: false, userId: null, userName: "" });
+    try {
+      const response = await dispatch(
+        addAssignees({ taskId, assigneeIds })
+      ).unwrap();
+      setAssigneesLocal(
+        response.assignees || assignees.concat(response.assignees || [])
+      );
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Failed to add assignees:", error);
     }
-  }, [removedData, deleteRequest, assignees, onAssigneesUpdate]);
+  };
 
   const handleRemoveAssignee = (userId, userName) => {
-    if (!taskId) return;
-    setConfirmationModal({
-      isOpen: true,
-      userId,
-      userName,
-    });
+    setConfirmationModal({ isOpen: true, userId, userName });
   };
 
-  const confirmRemoveAssignee = () => {
-    if (!confirmationModal.userId) return;
-    setDeleteRequest(confirmationModal.userId);
+  const confirmRemoveAssignee = async () => {
+    if (!confirmationModal.userId || !taskId) return;
+
+    try {
+      await dispatch(
+        removeAssignee({ taskId, userId: confirmationModal.userId })
+      ).unwrap();
+      setAssigneesLocal(
+        assignees.filter((user) => user.id !== confirmationModal.userId)
+      );
+      setConfirmationModal({ isOpen: false, userId: null, userName: "" });
+    } catch (error) {
+      console.error("Failed to remove assignee:", error);
+    }
   };
 
   const cancelRemoveAssignee = () => {
@@ -120,18 +136,7 @@ const AssigneesSection = ({
     );
   };
 
-  const getUserDisplayName = (user) =>
-    user.first_name || user.last_name
-      ? `${user.first_name} ${user.last_name}`.trim()
-      : user.username;
-
-  const isUpdating = adding || removing;
-  const error = addError?.message || removeError?.message;
-
-  // console.log("Task ID:",taskId)
-  // console.log("Task creator's ID:", taskCreator);
-  // console.log("Current User:", currentUser);
-  // console.log(taskCreator === currentUser?.id);
+  const isUpdating = loading;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -139,10 +144,10 @@ const AssigneesSection = ({
         <h3 className="text-base sm:text-lg font-semibold text-gray-900">
           Assignees ({assignees?.length || 0})
         </h3>
-        {taskCreator === currentUser && (
+        {taskCreator === currentUser?.id && (
           <button
             onClick={() => setIsModalOpen(true)}
-            disabled={disabled || isUpdating || !taskId}
+            disabled={isUpdating || !taskId}
             className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium px-2 py-1 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUpdating ? (
@@ -188,22 +193,18 @@ const AssigneesSection = ({
               {renderAvatar(assignee)}
               <div className="min-w-0 flex-1">
                 <h4 className="text-sm font-medium text-gray-900 truncate">
-                  {getUserDisplayName(assignee)}
+                  {assignee.display_name}
                 </h4>
                 <p className="text-xs text-gray-500 truncate">
                   {assignee.email}
                 </p>
               </div>
-
-              {taskCreator === currentUser && (
+              {taskCreator === currentUser?.id && (
                 <button
                   onClick={() =>
-                    handleRemoveAssignee(
-                      assignee.id,
-                      getUserDisplayName(assignee)
-                    )
+                    handleRemoveAssignee(assignee.id, assignee.display_name)
                   }
-                  disabled={disabled || isUpdating || !taskId}
+                  disabled={isUpdating || !taskId}
                   className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Remove assignee"
                 >
@@ -217,12 +218,8 @@ const AssigneesSection = ({
 
       <AddAssigneeModal
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setPendingAssignees([]);
-        }}
-        onSave={handleAddAssignees}
-        initialAssignees={assignees || []}
+        onClose={() => setIsModalOpen(false)}
+        onAddAssignees={handleAddAssignees}
       />
 
       <ConfirmationModal
