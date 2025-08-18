@@ -1,148 +1,67 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
 import { ToastContainer, toast } from "react-toastify";
-import {
-  HiOutlineCalendar,
-  HiOutlineFolderOpen,
-  HiOutlineArrowLeft,
-  HiOutlineXCircle,
-  HiOutlinePencilAlt,
-  HiOutlineTrash,
-  HiOutlinePlus,
-  HiOutlineDownload,
-} from "react-icons/hi";
-import { AiOutlinePaperClip } from "react-icons/ai";
-import Subtasks from "../components/task/Subtasks";
+import { HiOutlineArrowLeft } from "react-icons/hi";
+import { ClipLoader } from "react-spinners";
+import Subtasks from "../components/task details/Subtasks";
+import AssigneesSection from "../components/task details/AssigneesSection";
+import CreatorSection from "../components/task details/CreatorSection";
+import AssetsSection from "../components/task details/AssetsSection";
+import TaskInfoCard from "../components/task details/TaskInfoCard";
+import EditTaskModal from "../components/update tasks/EditTaskModal";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import ConfirmationModal from "../components/modals/ConfirmationModal";
+
+import { useAppDispatch, useAppSelector } from "../app/hooks";
+import { fetchTaskDetail } from "../features/task detail/taskDetailSlice";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const TaskDetails = () => {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const { id } = useParams();
   const navigate = useNavigate();
-  const [task, setTask] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { currentUser } = useCurrentUser();
 
-  const getAccessToken = () => {
-    return (
-      localStorage.getItem("accessToken") ||
-      sessionStorage.getItem("accessToken")
-    );
-  };
+  const dispatch = useAppDispatch();
+  const { task, loading, error } = useAppSelector((state) => state.taskDetail);
 
-  const fetchTaskDetails = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const accessToken = getAccessToken();
-
-      if (!accessToken) {
-        throw new Error("No access token found. Please log in again.");
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${id}/`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("accessToken");
-        sessionStorage.removeItem("accessToken");
-        throw new Error("Authentication failed. Please log in again.");
-      }
-
-      if (response.status === 404) {
-        throw new Error("Task not found.");
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch task: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      setTask(data);
-    } catch (err) {
-      console.error("Error fetching task:", err);
-      setError(err.message);
-      toast.error(`Error loading task: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  console.log(task)
 
   useEffect(() => {
     if (id) {
-      fetchTaskDetails();
+      dispatch(fetchTaskDetail({ taskId: id }));
     }
-  }, [id]);
+  }, [dispatch, id]);
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "completed":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "pending":
-        return "bg-amber-50 text-amber-700 border-amber-200";
-      case "in progress":
-        return "bg-blue-50 text-blue-700 border-blue-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
-    }
-  };
+  const handleEditTask = () => setIsEditModalOpen(true);
 
-  const getPriorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case "high":
-        return "bg-red-50 text-red-700 border-red-200";
-      case "medium":
-        return "bg-orange-50 text-orange-700 border-orange-200";
-      case "low":
-        return "bg-green-50 text-green-700 border-green-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
-    }
-  };
+  const handleTaskDelete = useCallback(async () => {
+    await fetch(`${API_BASE_URL}/api/tasks/${id}/`, { method: "DELETE" });
+    toast.success("Task deleted successfully!");
+    navigate("/tasks");
+  }, [navigate, id]);
 
-  const renderAvatar = (user) => {
-    if (user?.avatar) {
-      const isAbsolute = user.avatar.startsWith("http");
-      const avatarUrl = isAbsolute
-        ? user.avatar
-        : `${API_BASE_URL}${user.avatar}`;
-      return (
-        <img
-          src={avatarUrl}
-          alt={user.username}
-          className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover"
-        />
-      );
-    }
+  const handleTaskUpdate = useCallback(() => {
+    dispatch(fetchTaskDetail({ taskId: id }));
+    setIsEditModalOpen(false);
+    toast.success("Task updated successfully!");
+  }, [dispatch, id]);
 
-    const initial =
-      user.first_name?.[0]?.toUpperCase() ||
-      user.username?.[0]?.toUpperCase() ||
-      "U";
-
-    return (
-      <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium">
-        {initial}
-      </div>
-    );
-  };
+  const handleAssigneesUpdate = useCallback(() => {
+    dispatch(fetchTaskDetail({ taskId: id }));
+  }, [dispatch, id]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-gray-600">Loading task details...</span>
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col items-center justify-center py-12">
+            <ClipLoader color="#3B82F6" size={40} />
+            <span className="mt-3 text-gray-600 text-sm sm:text-base">
+              Loading task details...
+            </span>
           </div>
         </div>
       </div>
@@ -151,10 +70,9 @@ const TaskDetails = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <HiOutlineXCircle className="mx-auto h-12 w-12 text-red-600 mb-4" />
             <h3 className="text-lg font-medium text-red-900 mb-2">
               Error Loading Task
             </h3>
@@ -171,271 +89,55 @@ const TaskDetails = () => {
     );
   }
 
-  if (!task) {
-    return null;
-  }
-
-  const isOverdue =
-    task.due_date &&
-    new Date(task.due_date) < new Date() &&
-    task.status?.toLowerCase() !== "completed";
+  if (!task) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-6 sm:mb-8">
           <button
             onClick={() => navigate("/tasks")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           >
             <HiOutlineArrowLeft className="w-5 h-5" />
-            Back to Tasks
+            <span className="text-sm sm:text-base">Back to Tasks</span>
           </button>
 
-          {/* Task Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-3">
-                  {task.title}
-                </h1>
-
-                {/* Badges */}
-                <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border ${getStatusColor(
-                      task.status
-                    )}`}
-                  >
-                    {task.status}
-                  </span>
-                  <span
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border ${getPriorityColor(
-                      task.priority
-                    )}`}
-                  >
-                    {task.priority} Priority
-                  </span>
-                  {task.project_title && (
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-indigo-200 text-indigo-600 bg-indigo-50">
-                      <HiOutlineFolderOpen className="w-4 h-4" />
-                      {task.project_title}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <button
-                  title="Edit task"
-                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <HiOutlinePencilAlt className="w-5 h-5" />
-                </button>
-                <button
-                  title="Delete task"
-                  className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <HiOutlineTrash className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Description */}
-            {task.description && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  {task.description}
-                </p>
-              </div>
-            )}
-
-            {/* Due Date */}
-            {(task.due_date || task.due_time) && (
-              <div
-                className={`p-4 rounded-lg border flex items-center gap-2 ${
-                  isOverdue
-                    ? "bg-red-50 border-red-200"
-                    : "bg-blue-50 border-blue-200"
-                }`}
-              >
-                <HiOutlineCalendar
-                  className={`w-5 h-5 ${
-                    isOverdue ? "text-red-500" : "text-blue-500"
-                  }`}
-                />
-                <span
-                  className={`text-sm font-medium ${
-                    isOverdue ? "text-red-700" : "text-blue-700"
-                  }`}
-                >
-                  {isOverdue ? "Overdue" : "Due"}:
-                </span>
-                <span
-                  className={`text-sm font-semibold ${
-                    isOverdue ? "text-red-800" : "text-blue-800"
-                  }`}
-                >
-                  {format(new Date(task.due_date), "MMMM dd, yyyy")}
-                  {task.due_time &&
-                    ` at ${format(
-                      new Date(`1970-01-01T${task.due_time}`),
-                      "HH:mm"
-                    )}`}
-                </span>
-              </div>
-            )}
-
-            {/* Metadata */}
-            <div className="flex gap-6 mt-auto justify-end items-center pt-4 border-t border-gray-100">
-              <span className="text-xs text-gray-500">
-                Last Updated:{" "}
-                <span className="font-medium text-gray-600">
-                  {format(new Date(task.updated_at), "MMM dd, yyyy 'at' HH:mm")}
-                </span>
-              </span>
-              <span className="text-xs text-gray-500">
-                Created:{" "}
-                <span className="font-medium text-gray-600">
-                  {format(new Date(task.created_at), "MMM dd, yyyy 'at' HH:mm")}
-                </span>
-              </span>
-            </div>
-          </div>
+          <TaskInfoCard
+            task={task}
+            onEdit={handleEditTask}
+            onDelete={() => setIsDeleteModalOpen(true)}
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Subtasks Component */}
-          <div className="lg:col-span-2 space-y-6">
-            <Subtasks task={task} setTask={setTask} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <Subtasks task={task} />
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Creator and Assignees */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              {/* Creator */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Creator
-              </h3>
-              <div className="flex items-center gap-3 mb-6">
-                {renderAvatar(task.creator)}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">
-                    {task.creator.first_name || task.creator.last_name
-                      ? `${task.creator.first_name} ${task.creator.last_name}`.trim()
-                      : task.creator.username}
-                  </h4>
-                  <p className="text-xs text-gray-500">{task.creator.email}</p>
-                </div>
-              </div>
-
-              {/* Assignees */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Assignees
-              </h3>
-              <div className="divide-y divide-gray-200">
-                {task.assignees.map((assignee, index) => (
-                  <div
-                    key={assignee.id}
-                    className={`flex items-center gap-3 py-3 ${
-                      index === 0 ? "pt-0" : ""
-                    }`}
-                  >
-                    {renderAvatar(assignee)}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">
-                        {assignee.first_name || assignee.last_name
-                          ? `${assignee.first_name} ${assignee.last_name}`.trim()
-                          : assignee.username}
-                      </h4>
-                      <p className="text-xs text-gray-500">{assignee.email}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Assets card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Assets</h3>
-                <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
-                  <HiOutlinePlus className="w-4 h-4" />
-                  Add Asset
-                </button>
-              </div>
-
-              {task.assets && task.assets.length > 0 ? (
-                <div className="space-y-3">
-                  {task.assets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="p-2 bg-blue-50 rounded-lg">
-                        <AiOutlinePaperClip className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">
-                          {asset.file.split("/").pop()}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Uploaded by:{" "}
-                          {asset.uploaded_by.first_name ||
-                          asset.uploaded_by.last_name
-                            ? `${asset.uploaded_by.first_name} ${asset.uploaded_by.last_name}`.trim()
-                            : asset.uploaded_by.username}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {format(
-                            new Date(asset.uploaded_at),
-                            "MMM dd, yyyy 'at' HH:mm"
-                          )}
-                        </p>
-                      </div>
-                      <a
-                        href={asset.file}
-                        download
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <HiOutlineDownload className="w-5 h-5" />
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">
-                    <AiOutlinePaperClip className="w-12 h-12 mx-auto" />
-                  </div>
-                  <p className="text-gray-600">No assets attached</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Click the "Add Asset" button to attach files
-                  </p>
-                </div>
-              )}
-            </div>
+          <div className="space-y-4 sm:space-y-6">
+            <CreatorSection creator={task.creator} />
+            <AssigneesSection />
+            <AssetsSection taskId={task.id} projectId={task.project} />
           </div>
         </div>
       </div>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
+      <EditTaskModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        task={task}
+        onTaskUpdate={handleTaskUpdate}
       />
+
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        title="Delete Task?"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        onConfirm={handleTaskDelete}
+        onCancel={() => setIsDeleteModalOpen(false)}
+      />
+
+      <ToastContainer />
     </div>
   );
 };
