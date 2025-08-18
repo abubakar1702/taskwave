@@ -7,11 +7,12 @@ import {
   IoSettingsOutline,
   IoLogOutOutline,
 } from "react-icons/io5";
-import { logoutUser } from "../../features/auth/authSlice";
+import { fetchCurrentUser, logoutUser } from "../../features/auth/authSlice";
 import useAuth from "../../hooks/useAuth";
 import LogOutModal from "../modals/LogOutModal";
 
 const UserMenu = () => {
+  const [loggingOut, setLoggingOut] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
   const dispatch = useDispatch();
@@ -20,7 +21,11 @@ const UserMenu = () => {
   const { user, isLoading } = useSelector((state) => state.auth);
   const { isAuthenticated } = useAuth();
 
-  console.log("UserMenu rendered with user:", user);
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchCurrentUser());
+    }
+  }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -32,60 +37,53 @@ const UserMenu = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    console.log("Auth state changed:", { isAuthenticated, user, isLoading });
-  }, [isAuthenticated, user, isLoading]);
-
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
+  const toggleDropdown = () => setIsOpen((prev) => !prev);
 
   const handleMenuClick = async (action) => {
+    setIsOpen(false);
     if (action === "Logout") {
       try {
+        setLoggingOut(true);
         await dispatch(logoutUser()).unwrap();
         navigate("/login");
       } catch (error) {
         console.error("Logout failed:", error);
         navigate("/login");
+      } finally {
+        setLoggingOut(false);
       }
     } else if (action === "Profile") {
       navigate("/profile");
     } else if (action === "Settings") {
       navigate("/settings");
     }
-    setIsOpen(false);
   };
 
-  const DefaultAvatar = () => {
-    const initials = user?.name
-      ? user.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-      : "U";
-
-    return (
-      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-        {initials}
-      </div>
-    );
-  };
-
-  if (!isAuthenticated || !user) {
-    return null;
-  }
+  if (!isAuthenticated || !user) return null;
 
   return (
     <div className="relative" ref={menuRef}>
-      {isLoading && <LogOutModal />}
+      {loggingOut && <LogOutModal />}
       <button
         onClick={toggleDropdown}
         disabled={isLoading}
-        className="flex items-center space-x-3 border border-gray-200 hover:border-gray-300 rounded-xl p-2 pr-3 bg-white hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center space-x-3 border border-gray-200 hover:border-gray-300 rounded-lg p-2 pr-3 bg-white hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <DefaultAvatar />
+        {user.avatar ? (
+          <img
+            src={user.avatar}
+            alt={user.name || "User"}
+            className="w-8 h-8 rounded-full object-cover"
+          />
+        ) : (
+          <div
+            className="flex items-center justify-center rounded-full bg-blue-500 text-white font-medium w-8 h-8"
+            style={{ lineHeight: 1 }}
+          >
+            {user.initial}
+          </div>
+        )}
+
         <IoChevronDown
           className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
@@ -97,10 +95,25 @@ const UserMenu = () => {
         <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center space-x-3">
-              <DefaultAvatar />
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || "User"}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center rounded-full bg-blue-500 text-white font-medium w-8 h-8"
+                  style={{ lineHeight: 1 }}
+                >
+                  {user.initial}
+                </div>
+              )}
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-gray-900">
-                  {user.firstName + " " + user.lastName || "User"}
+                  {user.firstName || user.lastName
+                    ? `${user.firstName} ${user.lastName}`
+                    : "User"}
                 </span>
                 <span className="text-xs text-gray-500">
                   {user.email || "No email"}

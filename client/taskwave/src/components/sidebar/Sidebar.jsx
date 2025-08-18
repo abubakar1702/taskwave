@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   FiStar,
@@ -32,7 +31,7 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile }) => {
       </div>
 
       <button
-        onClick={() => navigate("/create")}
+        onClick={() => navigate("/new-task")}
         className={`flex items-center text-white bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg transition-all duration-300 ${
           collapsed 
           ? "w-12 h-10 justify-center" 
@@ -50,7 +49,7 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile }) => {
       </button>
 
       <nav className="space-y-1">
-        <SidebarItem icon={<TbActivityHeartbeat />} label="Activity" to="/" collapsed={collapsed} />
+        <SidebarItem icon={<TbActivityHeartbeat />} label="Activity" to="/activity" collapsed={collapsed} />
         <SidebarItem icon={<FiMessageSquare />} label="Inbox" to="/inbox" count={5} collapsed={collapsed} />
         <SidebarItem icon={<FiStar />} label="Important" to="/important" collapsed={collapsed} />
         <SidebarItem icon={<GrNotes />} label="Notes" to="/notes" collapsed={collapsed} />
@@ -59,7 +58,7 @@ const Sidebar = ({ collapsed, setCollapsed, isMobile }) => {
       <hr className="border-gray-200" />
 
       <nav className="space-y-1">
-        <SidebarItem icon={<BsListTask />} label="Tasks" to="/tasks" collapsed={collapsed} />
+        <SidebarItem icon={<BsListTask />} label="Tasks" to="/" collapsed={collapsed} />
         <SidebarItem icon={<FiFolder />} label="Projects" to="/projects" collapsed={collapsed} />
         <SidebarItem icon={<FiUsers />} label="Team" to="/team" collapsed={collapsed} />
         <SidebarItem icon={<FiCalendar />} label="Calendar" to="/calendar" collapsed={collapsed} />

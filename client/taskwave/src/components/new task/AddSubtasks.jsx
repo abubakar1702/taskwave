@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { FiFileText, FiX, FiAlertCircle } from "react-icons/fi";
 import { FaPlus } from "react-icons/fa";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import UserInitial from "../auth/UserInitial";
 
 const AddSubtasks = ({
   subtasks,
@@ -20,19 +21,26 @@ const AddSubtasks = ({
     if (!newSubtask.trim()) {
       return;
     }
-    // const selectedUserId = newSubtaskAssignee;
-    // const selectedUser = selectedUserId
-    //   ? assignedUsers.find((user) => user.id === selectedUserId)
-    //   : null;
 
     let selectedUser = null;
 
     if (newSubtaskAssignee) {
-      selectedUser =
-        assignedUsers.find((user) => user.id === newSubtaskAssignee) ||
-        (currentUser?.id === newSubtaskAssignee ? currentUser : null);
+      selectedUser = assignedUsers.find(
+        (user) => user.id === newSubtaskAssignee
+      );
+      if (!selectedUser && currentUser?.id === newSubtaskAssignee) {
+        selectedUser = currentUser;
+      }
+
+      if (!selectedUser) {
+        const assigneeId = parseInt(newSubtaskAssignee);
+        selectedUser = assignedUsers.find((user) => user.id === assigneeId);
+
+        if (!selectedUser && currentUser?.id === assigneeId) {
+          selectedUser = currentUser;
+        }
+      }
     }
-    console.log("Selected user for new subtask:", selectedUser);
 
     onAddSubtask({
       title: newSubtask.trim(),
@@ -54,11 +62,7 @@ const AddSubtasks = ({
         className="w-6 h-6 rounded-full border border-white shadow object-cover"
       />
     ) : (
-      <div className="w-6 h-6 rounded-full border border-white shadow bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
-        {user.first_name?.[0]?.toUpperCase() ||
-          user.username?.[0]?.toUpperCase() ||
-          "U"}
-      </div>
+      <UserInitial className="w-6 h-6" />
     );
   };
 
@@ -163,6 +167,7 @@ const AddSubtasks = ({
             <button
               type="button"
               onClick={handleAddSubtask}
+              disabled={!newSubtask.trim()}
               className="inline-flex items-center px-4 py-3 border border-transparent text-sm leading-4 font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <FaPlus className="mr-2" /> Add
@@ -182,7 +187,7 @@ const AddSubtasks = ({
               onChange={(e) => setNewSubtaskAssignee(e.target.value)}
               className="block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg bg-white"
             >
-              <option value="">Assign to (optional)</option>
+              <option value="">Unassigned</option>
 
               {currentUser && (
                 <option value={currentUser.id}>

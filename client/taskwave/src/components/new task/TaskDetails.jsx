@@ -1,6 +1,8 @@
 import React from "react";
 import { FiTag, FiCalendar, FiClock, FiAlertCircle } from "react-icons/fi";
 
+const today = new Date().toISOString().split("T")[0];
+
 const TaskDetails = ({ formData, validationErrors, handleInputChange }) => {
   return (
     <div>
@@ -39,13 +41,17 @@ const TaskDetails = ({ formData, validationErrors, handleInputChange }) => {
             <FiCalendar className="text-blue-400" /> Due Date
           </label>
           <div className="relative">
-            <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
+            <FiCalendar
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 "
+              aria-hidden="true"
+            />
             <input
               type="date"
               name="dueDate"
               id="dueDate"
               value={formData.dueDate}
               onChange={handleInputChange}
+              min={today}
               className={`pl-10 pr-4 py-3 w-full border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
                 validationErrors.dueDate
                   ? "border-red-300 focus:ring-red-500 bg-red-50"

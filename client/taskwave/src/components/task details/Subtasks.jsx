@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import axios from "axios";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
 import {
@@ -7,15 +8,20 @@ import {
   HiOutlineUser,
   HiChevronDown,
   HiChevronRight,
+  HiX,
+  HiCheck,
 } from "react-icons/hi";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import AddSubtaskModal from "./AddSubtaskModal";
-import { useApi } from "../../hooks/useApi";
+import ConfirmationModal from "../modals/ConfirmationModal";
 import SubtaskActions from "./SubtaskActions";
+import { useAppDispatch } from "../../app/hooks";
+import { fetchTaskDetail } from "../../features/task detail/taskDetailSlice";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-const Subtasks = ({ task, setTask }) => {
+const Subtasks = ({ task }) => {
+  const dispatch = useAppDispatch();
   const { currentUser } = useCurrentUser();
   const [expandedCategories, setExpandedCategories] = useState({
     assignedToMe: true,
@@ -24,92 +30,142 @@ const Subtasks = ({ task, setTask }) => {
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState({});
-  const [requestBody, setRequestBody] = useState(null);
-  const [patchBody, setPatchBody] = useState(null);
-  const [patchUrl, setPatchUrl] = useState(null);
+  const [editingSubtask, setEditingSubtask] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [subtaskToDelete, setSubtaskToDelete] = useState(null);
 
-  const {
-    data: addedSubtask,
-    loading: adding,
-    error: addError,
-  } = useApi(
-    requestBody ? `${API_BASE_URL}/api/task/${task.id}/subtasks/` : null,
-    "POST",
-    requestBody,
-    [requestBody]
-  );
-
-  const {
-    data: updatedSubtask,
-    loading: patching,
-    error: patchError,
-  } = useApi(patchUrl, "PATCH", patchBody, [patchUrl, patchBody]);
-
-  useEffect(() => {
-    if (addedSubtask) {
-      setTask((prev) => ({
-        ...prev,
-        subtasks: [...prev.subtasks, addedSubtask],
-      }));
-      toast.success("Subtask added successfully");
-      setRequestBody(null);
-      setIsModalOpen(false);
-    }
-  }, [addedSubtask, setTask]);
-
-  useEffect(() => {
-    if (updatedSubtask) {
-      setTask((prev) => ({
-        ...prev,
-        subtasks: prev.subtasks.map((subtask) =>
-          subtask.id === updatedSubtask.id ? updatedSubtask : subtask
-        ),
-      }));
-      toast.success("Subtask updated successfully");
-      setPatchBody(null);
-      setPatchUrl(null);
-    }
-  }, [updatedSubtask, setTask]);
-
-  const handleAddNewSubtask = (subtask) => {
-    setRequestBody(subtask);
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const toggleSubtaskCompletion = (subtaskId, currentStatus, assignedTo) => {
+  const refreshTask = () => dispatch(fetchTaskDetail({ taskId: task.id }));
+
+  const handleAddNewSubtask = async (subtask) => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/task/${task.id}/subtasks/`, subtask, {
+        headers: getAuthHeaders(),
+      });
+      refreshTask();
+      toast.success("Subtask added successfully");
+    } catch (error) {
+      toast.error("Failed to add subtask");
+    }
+  };
+
+  const toggleSubtaskCompletion = async (subtaskId, currentStatus, assignedTo) => {
     if (!assignedTo || assignedTo.id !== currentUser?.id) {
       toast.error("You can only update subtasks assigned to you");
       return;
     }
-    setPatchUrl(`${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`);
-    setPatchBody({ is_completed: !currentStatus });
+
+    try {
+      await axios.patch(
+        `${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`,
+        { is_completed: !currentStatus },
+        { headers: getAuthHeaders() }
+      );
+      refreshTask();
+      toast.success("Subtask updated successfully");
+    } catch (error) {
+      toast.error("Failed to update subtask");
+    }
   };
 
-  const handleUnassign = (subtaskId) => {
-    setPatchUrl(`${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`);
-    setPatchBody({ assigned_to: null, is_completed: false });
+  const handleUnassign = async (subtaskId) => {
+    try {
+      await axios.patch(
+        `${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`,
+        { assigned_to: null, is_completed: false },
+        { headers: getAuthHeaders() }
+      );
+      refreshTask();
+      toast.success("Subtask unassigned successfully");
+    } catch (error) {
+      toast.error("Failed to unassign subtask");
+    }
   };
 
-  const handleAssignSubtask = (subtaskId, userId) => {
-    const selectedUser = [...task.assignees, task.creator].find(
-      (u) => u.id === userId
-    );
-    setPatchUrl(`${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`);
-    setPatchBody({ assigned_to: userId });
+  const handleAssignSubtask = async (subtaskId, userId) => {
+    try {
+      await axios.patch(
+        `${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskId}/`,
+        { assigned_to: userId },
+        { headers: getAuthHeaders() }
+      );
+      refreshTask();
+      toast.success("Subtask assigned successfully");
+    } catch (error) {
+      toast.error("Failed to assign subtask");
+    }
   };
 
-  const toggleDropdown = (subtaskId) => {
-    setOpenDropdowns((prev) => ({
-      ...prev,
-      [subtaskId]: !prev[subtaskId],
-    }));
+  const handleEditClick = (subtaskId) => {
+    const subtask = task.subtasks.find((s) => s.id === subtaskId);
+    setEditingSubtask(subtaskId);
+    setEditTitle(subtask.title);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) {
+      toast.error("Subtask title cannot be empty");
+      return;
+    }
+
+    try {
+      await axios.patch(
+        `${API_BASE_URL}/api/tasks/${task.id}/subtask/${editingSubtask}/`,
+        { title: editTitle.trim() },
+        { headers: getAuthHeaders() }
+      );
+      refreshTask();
+      toast.success("Subtask updated successfully");
+      setEditingSubtask(null);
+      setEditTitle("");
+    } catch (error) {
+      toast.error("Failed to update subtask");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSubtask(null);
+    setEditTitle("");
+  };
+
+  const handleDeleteSubtask = (subtask) => {
+    setSubtaskToDelete(subtask);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!subtaskToDelete) return;
+
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtaskToDelete.id}/`,
+        { headers: getAuthHeaders() }
+      );
+      refreshTask();
+      toast.success("Subtask deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete subtask");
+    } finally {
+      setShowDeleteModal(false);
+      setSubtaskToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setSubtaskToDelete(null);
   };
 
   const renderAvatar = (user, size = "6") => {
     if (!user) return null;
     if (user.avatar) {
-      const isAbsolute = user.avatar.startsWith("http");
-      const avatarUrl = isAbsolute
-        ? user.avatar
+      const avatarUrl = user.avatar.startsWith("http") 
+        ? user.avatar 
         : `${API_BASE_URL}${user.avatar}`;
       return (
         <img
@@ -119,37 +175,17 @@ const Subtasks = ({ task, setTask }) => {
         />
       );
     }
-    const initial =
-      user.first_name?.[0]?.toUpperCase() ||
-      user.username?.[0]?.toUpperCase() ||
-      "U";
+    const initial = user.first_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || "U";
     return (
-      <div
-        className={`w-${size} h-${size} rounded-full border border-gray-200 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium`}
-      >
+      <div className={`w-${size} h-${size} rounded-full border border-gray-200 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium`}>
         {initial}
       </div>
     );
   };
 
   const getUserDisplayName = (user) => {
-    if (user.first_name || user.last_name)
-      return `${user.first_name} ${user.last_name}`.trim();
+    if (user.first_name || user.last_name) return `${user.first_name} ${user.last_name}`.trim();
     return user.username;
-  };
-
-  const getAvailableAssignees = () => {
-    const isTaskCreator = task.creator?.id === currentUser?.id;
-    if (isTaskCreator) {
-      const allUsers = [...task.assignees];
-      if (!allUsers.find((u) => u.id === task.creator.id))
-        allUsers.push(task.creator);
-      return allUsers;
-    } else {
-      return (
-        task.assignees?.filter((user) => user.id === currentUser?.id) || []
-      );
-    }
   };
 
   const toggleCategory = (category) => {
@@ -159,91 +195,99 @@ const Subtasks = ({ task, setTask }) => {
     }));
   };
 
-  const renderSubtaskItem = (subtask, canToggle = false) => (
-    <div
-      key={subtask.id}
-      className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
-    >
-      {canToggle ? (
-        <button
-          onClick={() =>
-            toggleSubtaskCompletion(
-              subtask.id,
-              subtask.is_completed,
-              subtask.assigned_to
-            )
-          }
-          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
-            subtask.is_completed
-              ? "bg-green-500 border-green-500 text-white"
-              : "border-gray-300 hover:border-green-500"
-          }`}
-        >
-          {subtask.is_completed && <HiOutlineCheckCircle className="w-3 h-3" />}
-        </button>
-      ) : (
-        <div
-          className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 cursor-not-allowed ${
-            subtask.is_completed
-              ? "bg-green-500 border-green-500 text-white"
-              : "border-gray-300 bg-gray-100"
-          }`}
-        >
-          {subtask.is_completed && <HiOutlineCheckCircle className="w-3 h-3" />}
-        </div>
-      )}
+  const renderSubtaskItem = (subtask, canToggle = false) => {
+    const isEditing = editingSubtask === subtask.id;
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between mb-2">
-          <h4
-            className={`text-sm font-medium flex-1 ${
-              subtask.is_completed
-                ? "line-through text-gray-500"
-                : "text-gray-900"
+    return (
+      <div className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
+        isEditing ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100 hover:border-gray-200"
+      }`}>
+        {canToggle && !isEditing && (
+          <button
+            onClick={() => toggleSubtaskCompletion(subtask.id, subtask.is_completed, subtask.assigned_to)}
+            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
+              subtask.is_completed ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-500"
             }`}
           >
-            {subtask.title}
-          </h4>
+            {subtask.is_completed && <HiOutlineCheckCircle className="w-3 h-3" />}
+          </button>
+        )}
 
-          <SubtaskActions
-            subtask={subtask}
-            task={task}
-            currentUser={currentUser}
-            openDropdowns={openDropdowns}
-            setOpenDropdowns={setOpenDropdowns}
-            handleAssignSubtask={handleAssignSubtask}
-            setPatchUrl={setPatchUrl}
-            setPatchBody={setPatchBody}
-            unassign={handleUnassign}
-          />
-        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            {isEditing ? (
+              <div className="flex-1 mr-3">
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full p-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter subtask title"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveEdit();
+                    if (e.key === "Escape") handleCancelEdit();
+                  }}
+                />
+              </div>
+            ) : (
+              <h4 className={`text-sm font-medium flex-1 ${
+                subtask.is_completed ? "line-through text-gray-500" : "text-gray-900"
+              }`}>
+                {subtask.title}
+              </h4>
+            )}
 
-        <div className="flex justify-between flex-wrap gap-4 text-xs text-gray-500">
-          {subtask.assigned_to ? (
-            <div className="flex items-center gap-1.5">
-              {renderAvatar(subtask.assigned_to)}
-              <span className="font-medium text-gray-700">
-                {getUserDisplayName(subtask.assigned_to)}
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <button onClick={handleSaveEdit} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                  <HiCheck className="w-4 h-4" />
+                </button>
+                <button onClick={handleCancelEdit} className="p-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                  <HiX className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <SubtaskActions
+                subtask={subtask}
+                task={task}
+                currentUser={currentUser}
+                openDropdowns={openDropdowns}
+                setOpenDropdowns={setOpenDropdowns}
+                handleAssignSubtask={handleAssignSubtask}
+                onEditClick={handleEditClick}
+                onDeleteClick={handleDeleteSubtask}
+                onUnassignClick={handleUnassign}
+              />
+            )}
+          </div>
+
+          {!isEditing && (
+            <div className="flex justify-between flex-wrap gap-4 text-xs text-gray-500">
+              {subtask.assigned_to ? (
+                <div className="flex items-center gap-1.5">
+                  {renderAvatar(subtask.assigned_to)}
+                  <span className="font-medium text-gray-700">
+                    {getUserDisplayName(subtask.assigned_to)}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-full border border-dashed border-gray-300 flex items-center justify-center">
+                    <HiOutlineUser className="w-3 h-3 text-gray-400" />
+                  </div>
+                  <span className="text-gray-400 italic">Unassigned</span>
+                </div>
+              )}
+              <span className="text-[11px] text-gray-400">
+                {format(new Date(subtask.created_at), "MMM dd, yyyy 'at' HH:mm")}
               </span>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-full border border-dashed border-gray-300 flex items-center justify-center">
-                <HiOutlineUser className="w-3 h-3 text-gray-400" />
-              </div>
-              <span className="text-gray-400 italic">Unassigned</span>
-            </div>
           )}
-
-          <div>
-            <span className="text-[11px] text-gray-400">
-              {format(new Date(subtask.created_at), "MMM dd, yyyy 'at' HH:mm")}
-            </span>
-          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderCategory = (title, subtasks, categoryKey, canToggle = false) => {
     if (!subtasks.length) return null;
@@ -254,7 +298,7 @@ const Subtasks = ({ task, setTask }) => {
       <div className="mb-6">
         <button
           onClick={() => toggleCategory(categoryKey)}
-          className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+          className="flex items-center justify-between w-full px-2 py-1 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
         >
           <div className="flex items-center gap-3">
             {isExpanded ? (
@@ -281,19 +325,12 @@ const Subtasks = ({ task, setTask }) => {
     );
   };
 
-  const assignedToMe =
-    task.subtasks?.filter((s) => s.assigned_to?.id === currentUser?.id) || [];
-  const assignedToTeam =
-    task.subtasks?.filter(
-      (s) => s.assigned_to && s.assigned_to.id !== currentUser?.id
-    ) || [];
+  const assignedToMe = task.subtasks?.filter((s) => s.assigned_to?.id === currentUser?.id) || [];
+  const assignedToTeam = task.subtasks?.filter((s) => s.assigned_to && s.assigned_to.id !== currentUser?.id) || [];
   const unassigned = task.subtasks?.filter((s) => !s.assigned_to) || [];
-
   const totalSubtasks = task.subtasks?.length || 0;
-  const completedSubtasks =
-    task.subtasks?.filter((s) => s.is_completed).length || 0;
-  const overallProgress =
-    totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+  const completedSubtasks = task.subtasks?.filter((s) => s.is_completed).length || 0;
+  const overallProgress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -306,13 +343,15 @@ const Subtasks = ({ task, setTask }) => {
             </span>
           )}
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-        >
-          <HiOutlinePlus className="w-4 h-4" />
-          Add Subtask
-        </button>
+        {task?.creator?.id === currentUser?.id && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
+          >
+            <HiOutlinePlus className="w-4 h-4" />
+            Add Subtask
+          </button>
+        )}
       </div>
 
       {totalSubtasks > 0 ? (
@@ -333,30 +372,23 @@ const Subtasks = ({ task, setTask }) => {
           </div>
 
           {renderCategory("Assigned to Me", assignedToMe, "assignedToMe", true)}
-          {renderCategory(
-            "Assigned to Team",
-            assignedToTeam,
-            "assignedToTeam",
-            false
-          )}
+          {renderCategory("Assigned to Team", assignedToTeam, "assignedToTeam", false)}
           {renderCategory("Unassigned", unassigned, "unassigned", false)}
         </>
       ) : (
         <div className="text-center py-12">
           <HiOutlineCheckCircle className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No subtasks yet
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Break down this task into smaller, manageable pieces
-          </p>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <HiOutlinePlus className="w-4 h-4" />
-            Create First Subtask
-          </button>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No subtasks yet</h3>
+          <p className="text-gray-600 mb-4">Break down this task into smaller, manageable pieces</p>
+          {task?.creator?.id === currentUser?.id && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <HiOutlinePlus className="w-4 h-4" />
+              Create First Subtask
+            </button>
+          )}
         </div>
       )}
 
@@ -365,6 +397,14 @@ const Subtasks = ({ task, setTask }) => {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddNewSubtask}
         assignedUsers={task.assignees || []}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        title="Delete Subtask"
+        message={`Are you sure you want to delete this subtask? This action cannot be undone.`}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
       />
     </div>
   );
