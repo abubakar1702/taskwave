@@ -73,12 +73,13 @@ export const addAssignees = createAsyncThunk(
 
 export const removeAssignee = createAsyncThunk(
   "taskDetail/removeAssignee",
-  async ({ taskId, userId }, { rejectWithValue }) => {
+  async ({ taskId, userId }, { rejectWithValue, dispatch }) => {
     try {
       await axios.delete(
         `${API_BASE_URL}/api/task/${taskId}/assignees/${userId}/remove/`,
         { headers: getAuthHeaders() }
       );
+      await dispatch(fetchTaskDetail({ taskId }));
       return { userId };
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
