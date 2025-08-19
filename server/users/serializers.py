@@ -7,13 +7,18 @@ from django.core.cache import cache
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'avatar', 'username', 'password')
+        fields = ('id', 'email', 'first_name', 'last_name', 'display_name', 'avatar', 'username', 'password')
         extra_kwargs = {
             'password': {'write_only': True}
         }
+
+    def get_display_name(self, obj):
+        full_name = f"{obj.first_name} {obj.last_name}".strip()
+        return full_name if full_name else obj.email
 
     def validate_password(self, value):
         try:

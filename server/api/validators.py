@@ -1,15 +1,11 @@
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import BasePermission
 
 def validate_due_date(value):
     if value and value < timezone.now().date():
         raise ValidationError("Due date cannot be in the past")
 
-def validate_file_size(value):
-    limit = 5 * 1024 * 1024
-    if value.size > limit:
-        raise ValidationError('File too large. Size should not exceed 5 MB.')
 
 class IsTaskCreatorOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -17,3 +13,22 @@ class IsTaskCreatorOrReadOnly(BasePermission):
             return True
         return obj.creator == request.user
 
+def validate_file_size(file):
+    max_size = 50 * 1024 * 1024  # 50MB in bytes
+    if file.size > max_size:
+        raise ValidationError(f'File size cannot exceed 50MB. Current size: {file.size / 1024 / 1024:.1f}MB')
+
+def validate_file_type(file):
+    allowed_extensions = [
+        'pdf', 'doc', 'docx', 'txt', 'rtf', 'odt',
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico',
+        'xls', 'xlsx', 'csv', 'ods',
+        'ppt', 'pptx', 'odp',
+        'zip', 'rar', '7z', 'tar', 'gz',
+        'py', 'js', 'html', 'css', 'json', 'xml', 'yml', 'yaml',
+    ]
+    
+    if file.name:
+        extension = file.name.split('.')[-1].lower()
+        if extension not in allowed_extensions:
+            raise ValidationError(f'File type "{extension}" is not allowed.')

@@ -11,13 +11,16 @@ class AssetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Asset
-        fields = ['id', 'task', 'file', 'uploaded_at', 'uploaded_by']
-        read_only_fields = ['id', 'task', 'uploaded_at', 'uploaded_by']
+        fields = ['id', 'file', 'task', 'project', 'uploaded_by', 'uploaded_at']
 
-    def validate_file(self, value):
-        if not value:
-            raise serializers.ValidationError("No file provided")
-        return value
+    def validate(self, data):
+        task = data.get('task')
+        project = data.get('project')
+        if not task and not project:
+            raise serializers.ValidationError("Asset must belong to either a task or a project.")
+        if task and project:
+            raise serializers.ValidationError("Asset cannot belong to both a task and a project.")
+        return data
 
 
 
@@ -128,7 +131,6 @@ class TaskSerializer(serializers.ModelSerializer):
         allow_null=True,
         write_only=True
     )
-    project_title = serializers.SerializerMethodField(read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
     assets = AssetSerializer(many=True, required=False)
 
@@ -136,12 +138,10 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'title', 'description', 'creator', 'subtasks', 'assignees',
-            'project','project_title', 'priority', 'status', 'due_date', 'due_time',
+            'project', 'priority', 'status', 'due_date', 'due_time',
             'comments', 'assets', 'created_at', 'updated_at'
         ]
-    
-    def get_project_title(self, obj):
-        return obj.project.title if obj.project else None
+
     
     def create(self, validated_data):
         subtasks_data = validated_data.pop('subtasks', [])
@@ -200,12 +200,28 @@ class TaskSerializer(serializers.ModelSerializer):
         data['assignees'] = UserSerializer(instance.assignees.all(), many=True).data
         return data
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['assignees'] = UserSerializer(instance.assignees.all(), many=True).data
+    
+        if instance.project:
+            data['project'] = {
+                'id': instance.project.id,
+                'title': instance.project.title,
+                'description': instance.project.description,
+                'creator': {
+                    'id': instance.project.creator.id,
+                    'first_name': instance.project.creator.first_name,
+                    'last_name': instance.project.creator.last_name,
+                    'username': instance.project.creator.username,
+                    'email': instance.project.creator.email,
+                },
+            }
+        return data
 
-class AssetSerializer(serializers.ModelSerializer):
-    uploaded_by = UserSerializer(read_only=True)
-    class Meta:
-        model = Asset
-        fields = ['id', 'file', 'task', 'project', 'uploaded_by', 'uploaded_at']
+
+
+
 
 
 

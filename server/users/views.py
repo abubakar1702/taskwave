@@ -5,6 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+
+from api.models import Membership
 from .serializers import (
     UserSerializer, 
     UserLoginSerializer, 
@@ -153,8 +155,9 @@ class LoginView(APIView):
                     }, status=status.HTTP_401_UNAUTHORIZED)
                 
                 refresh = RefreshToken.for_user(user)
+                user_serializer = UserSerializer(user, context={'request': request})
                 return Response({
-                    'user': UserSerializer(user).data,
+                    'user': user_serializer.data,
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                     'message': f'Welcome back, {user.first_name or user.username}!'
@@ -431,3 +434,29 @@ class UserSearchAPIView(generics.ListAPIView):
             'count': len(serializer.data),
             'results': serializer.data
         }, status=status.HTTP_200_OK)
+
+class UserSearchForAddingAsAssigneeAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSearchSerializer
+
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        project_id = self.request.query_params.get('project_id')
+
+        if not query:
+            return User.objects.none()
+
+        queryset = User.objects.filter(
+            Q(username__icontains=query) |
+            Q(email__icontains=query),
+            is_active=True
+        ).exclude(id=self.request.user.id)
+
+        if project_id:
+            if not Membership.objects.filter(user=self.request.user, project_id=project_id).exists():
+                return User.objects.none()
+
+            queryset = queryset.filter(memberships__project_id=project_id)
+
+
+        return queryset.order_by('username')[:20]
