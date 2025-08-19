@@ -11,7 +11,8 @@ from .views import (
     VerifyOTPView,
     EmailExistsCheckView,
     ResetPasswordView,
-    UserSearchAPIView
+    UserSearchAPIView,
+    UserSearchForAddingAsAssigneeAPIView
 )
 
 app_name = 'auth'
@@ -28,5 +29,5 @@ urlpatterns = [
     path('user/delete/', DeleteAccountView.as_view(), name='delete_account'),
     path('check-email/', EmailExistsCheckView.as_view(), name='check_email'),
     path('reset-password/', ResetPasswordView.as_view(), name='reset_password'),
-    path('search/', UserSearchAPIView.as_view(), name='user-search'),
+    path('search/', UserSearchForAddingAsAssigneeAPIView.as_view(), name='user-search'),
 ]
