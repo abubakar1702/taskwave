@@ -1,18 +1,37 @@
 import React from "react";
 import { FiFileText, FiAlertCircle } from "react-icons/fi";
 
-const BasicInformation = ({ formData, validationErrors, handleInputChange }) => {
+const BasicInformation = ({
+  formData,
+  validationErrors,
+  handleInputChange,
+}) => {
+  const titleWordCount = formData.title
+    ? formData.title.trim().split(/\s+/).filter(Boolean).length
+    : 0;
+
+  const titleCharCount = formData.title ? formData.title.length : 0;
+
   return (
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <label
-          htmlFor="title"
-          className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"
-        >
-          <FiFileText className="text-blue-400" />
-          Title <span className="text-red-500">*</span>
-        </label>
+        <div className="flex justify-between">
+          <label
+            htmlFor="title"
+            className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2"
+          >
+            <FiFileText className="text-blue-400" />
+            Title <span className="text-red-500">*</span>
+          </label>
+          <p
+            className={`mt-1 text-sm ${
+              titleCharCount > 200 ? "text-red-500" : "text-gray-500"
+            }`}
+          >
+            {titleCharCount} / 200
+          </p>
+        </div>
         <div className="relative">
           <FiFileText className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
           <input
@@ -29,6 +48,7 @@ const BasicInformation = ({ formData, validationErrors, handleInputChange }) => 
             placeholder="Task title"
           />
         </div>
+
         {validationErrors.title && (
           <p className="mt-1 text-sm text-red-600 flex items-center">
             <FiAlertCircle className="mr-1" />
@@ -62,6 +82,7 @@ const BasicInformation = ({ formData, validationErrors, handleInputChange }) => 
             placeholder="Detailed task description"
           />
         </div>
+
         {validationErrors.description && (
           <p className="mt-1 text-sm text-red-600 flex items-center">
             <FiAlertCircle className="mr-1" />

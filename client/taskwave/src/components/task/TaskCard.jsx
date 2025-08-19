@@ -2,10 +2,7 @@ import React from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { AiOutlinePaperClip } from "react-icons/ai";
-import {
-  HiOutlineCalendar,
-  HiOutlineFolderOpen,
-} from "react-icons/hi";
+import { HiOutlineCalendar, HiOutlineFolderOpen } from "react-icons/hi";
 
 const TaskCard = ({
   id,
@@ -17,15 +14,14 @@ const TaskCard = ({
   created_at,
   creator = null,
   status,
-  project_title,
+  project,
   assets = [],
 }) => {
   const navigate = useNavigate();
 
   const handleClick = () => {
-  navigate(`/tasks/${id}`);
-};
-
+    navigate(`/tasks/${id}`);
+  };
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -114,10 +110,10 @@ const TaskCard = ({
           </span>
         </div>
 
-        {project_title && (
+        {project?.title && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
             <HiOutlineFolderOpen className="w-3 h-3" />
-            <span>{project_title}</span>
+            <span>{project?.title}</span>
           </div>
         )}
       </div>
@@ -162,19 +158,19 @@ const TaskCard = ({
         </div>
       )}
 
-      {assignees.length > 0 && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between">
-            {creator && (
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-xs text-gray-500">by</span>
-                <span className="text-xs font-medium text-gray-700">
-                  {creator.first_name || creator.last_name
-                    ? `${creator.first_name} ${creator.last_name}`.trim()
-                    : creator.username || "Unknown"}
-                </span>
-              </div>
-            )}
+      <div className="mb-4">
+        <div className="flex items-center justify-between">
+          {creator && (
+            <div className="flex items-center gap-1 mb-2">
+              <span className="text-xs text-gray-500">by</span>
+              <span className="text-xs font-medium text-gray-700">
+                {creator.first_name || creator.last_name
+                  ? `${creator.first_name} ${creator.last_name}`.trim()
+                  : creator.username || "Unknown"}
+              </span>
+            </div>
+          )}
+          {assignees.length > 0 && (
             <div className="flex -space-x-2">
               {assignees.slice(0, 4).map((user) => (
                 <div key={user.id} className="relative">
@@ -187,9 +183,9 @@ const TaskCard = ({
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="flex items-end justify-between mt-auto pt-4 border-t border-gray-100">
         <div className="flex-1">

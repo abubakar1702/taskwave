@@ -1,4 +1,5 @@
-import React, { useState, useEffect, use } from "react";
+import React, { useState } from "react";
+import { useApi } from "../hooks/useApi";
 import { useNavigate } from "react-router-dom";
 import { FiUser, FiFileText, FiAlertCircle } from "react-icons/fi";
 import UserSearch from "../components/new task/UserSearch";
@@ -7,10 +8,14 @@ import FormAction from "../components/new task/FormAction";
 import BasicInformation from "../components/new task/BasicInformation";
 import ProjectSelection from "../components/new task/ProjectSection";
 import TaskDetails from "../components/new task/TaskDetails";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const NewTask = () => {
+  const { currentUser } = useCurrentUser();
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -21,58 +26,26 @@ const NewTask = () => {
     assignedTo: [],
     subtasks: [],
     project: "",
-    creator: null,
     comments: [],
     assets: [],
   });
-  const [newSubtask, setNewSubtask] = useState("");
-  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [validationErrors, setValidationErrors] = useState({});
   const [isCreating, setIsCreating] = useState(false);
-  const navigate = useNavigate();
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const token =
-          localStorage.getItem("accessToken") ||
-          sessionStorage.getItem("accessToken");
-        if (!token) {
-          setError("Authentication required. Please log in again.");
-          setLoading(false);
-          return;
-        }
+  const {
+    data: projects = [],
+    loading: projectsLoading,
+    error: projectsError,
+    makeRequest,
+  } = useApi(`${API_BASE_URL}/api/projects/`, "GET");
 
-        const projectsResponse = await fetch(`${API_BASE_URL}/api/projects/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (projectsResponse.ok) {
-          const projects = await projectsResponse.json();
-          console.log("Fetched projects:", projects);
-          setProjects(projects);
-        } else {
-          setError("Failed to load projects.");
-        }
-      } catch (error) {
-        setError("Network error. Please check your connection and try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (name === "dueDate" && value && !formData.dueTime) {
-      setFormData((prev) => ({ ...prev, [name]: value, dueTime: "23:59" }));
+      setFormData((prev) => ({ ...prev, dueTime: "23:59" }));
     }
     if (validationErrors[name]) {
       setValidationErrors((prev) => ({ ...prev, [name]: "" }));
@@ -101,13 +74,10 @@ const NewTask = () => {
   const handleUserRemove = (userId) => {
     setFormData((prev) => ({
       ...prev,
-      assignedTo: prev.assignedTo.filter((user) => user.id !== userId),
-      subtasks: prev.subtasks.map((subtask) => ({
-        ...subtask,
-        assignedTo:
-          subtask.assignedTo && subtask.assignedTo.id === userId
-            ? null
-            : subtask.assignedTo,
+      assignedTo: prev.assignedTo.filter((u) => u.id !== userId),
+      subtasks: prev.subtasks.map((st) => ({
+        ...st,
+        assignedTo: st.assignedTo?.id === userId ? null : st.assignedTo,
       })),
     }));
   };
@@ -138,10 +108,7 @@ const NewTask = () => {
   const handleRemoveSubtaskAssignee = (index) => {
     const newSubtasks = [...formData.subtasks];
     newSubtasks[index].assignedTo = null;
-    setFormData((prev) => ({
-      ...prev,
-      subtasks: newSubtasks,
-    }));
+    setFormData((prev) => ({ ...prev, subtasks: newSubtasks }));
   };
 
   const validateForm = () => {
@@ -167,16 +134,6 @@ const NewTask = () => {
       isValid = false;
     }
 
-    if (formData.dueDate) {
-      const selectedDate = new Date(formData.dueDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (selectedDate < today) {
-        errors.dueDate = "Due date cannot be in the past";
-        isValid = false;
-      }
-    }
-
     formData.subtasks.forEach((subtask, index) => {
       if (!subtask.title.trim()) {
         errors[`subtask_${index}`] = "Subtask title is required";
@@ -187,13 +144,18 @@ const NewTask = () => {
         isValid = false;
       }
 
-      if (
-        subtask.assignedTo &&
-        !formData.assignedTo.some((u) => u.id === subtask.assignedTo.id)
-      ) {
-        errors[`subtask_assignee_${index}`] =
-          "Assignee must be assigned to main task";
-        isValid = false;
+      if (subtask.assignedTo) {
+        const assigneeId = subtask.assignedTo.id;
+        const isAssignedToMainTask = formData.assignedTo.some(
+          (u) => u.id === assigneeId
+        );
+        const isCurrentUser = currentUser && currentUser.id === assigneeId;
+
+        if (!isAssignedToMainTask && !isCurrentUser) {
+          errors[`subtask_assignee_${index}`] =
+            "Assignee must be assigned to main task";
+          isValid = false;
+        }
       }
     });
 
@@ -209,16 +171,6 @@ const NewTask = () => {
     setError("");
 
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        sessionStorage.getItem("accessToken");
-
-      if (!token) {
-        setError("Authentication required. Please log in again.");
-        setIsCreating(false);
-        return;
-      }
-
       const taskData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -226,7 +178,7 @@ const NewTask = () => {
         status: "Pending",
         due_date: formData.dueDate || null,
         due_time: formData.dueTime || null,
-        project: formData.project ? parseInt(formData.project) : null,
+        project: formData.project || null,
         assignees: formData.assignedTo.map((user) => user.id),
         subtasks: formData.subtasks.map((subtask) => ({
           title: subtask.title.trim(),
@@ -235,68 +187,39 @@ const NewTask = () => {
         })),
       };
 
-      console.log("Task data being sent:", taskData);
+      const createdTask = await makeRequest(
+        `${API_BASE_URL}/api/tasks/`,
+        "POST",
+        taskData
+      );
 
-      const response = await fetch(`${API_BASE_URL}/api/tasks/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(taskData),
-      });
-
-      if (response.ok) {
-        const createdTask = await response.json();
-        const formattedTask = {
-          ...createdTask,
-          assignedTo: createdTask.assignees,
-          subtasks: createdTask.subtasks.map((st) => ({
-            ...st,
-            assignedTo: st.assigned_to
-              ? formData.assignedTo.find((u) => u.id === st.assigned_to)
-              : null,
-          })),
-        };
-
-        window.dispatchEvent(
-          new CustomEvent("taskCreated", { detail: formattedTask })
-        );
-        navigate("/tasks", { state: { newTask: formattedTask } });
-      } else {
-        const errorData = await response.text();
-        console.debug("Error response:", errorData);
-        setError(`Failed to create task. Please try again.`);
-      }
-    } catch (error) {
-      console.debug("Network error:", error);
-      setError("Network error. Please check your connection and try again.");
+      navigate("/tasks", { state: { newTask: createdTask } });
+    } catch (err) {
+      setError(`Failed to create task. ${err.message || err}`);
     } finally {
       setIsCreating(false);
     }
   };
 
-  const renderAssigneesSection = () => {
-    return (
-      <div>
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <FiUser className="text-blue-400" /> Assign Team Members
-        </h3>
-        <UserSearch
-          selectedUsers={formData.assignedTo}
-          onSelectUser={handleUserSelect}
-          onRemoveUser={handleUserRemove}
-          projectId={formData.project || null}
-          placeholder="Search team members..."
-          error={validationErrors.assignedTo}
-        />
-      </div>
-    );
-  };
+  const renderAssigneesSection = () => (
+    <div>
+      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <FiUser className="text-blue-400" /> Assign Team Members
+      </h3>
+      <UserSearch
+        selectedUsers={formData.assignedTo}
+        onSelectUser={handleUserSelect}
+        onRemoveUser={handleUserRemove}
+        projectId={formData.project || null}
+        placeholder="Search team members..."
+        error={validationErrors.assignedTo}
+      />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen w-full px-0 py-0 bg-gradient-to-br from-slate-50 to-blue-50">
-      <main className="w-full min-h-screen p-0 m-0">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 to-blue-50">
+      <main className="w-full min-h-screen">
         <div className="w-full rounded-none bg-gradient-to-r from-blue-50 to-indigo-50 px-12 py-12 flex items-center gap-6 border-b border-gray-100">
           <FiFileText className="w-12 h-12 text-blue-500 flex-shrink-0" />
           <div>
@@ -309,58 +232,61 @@ const NewTask = () => {
           </div>
         </div>
         <div className="w-full bg-white shadow-none rounded-none overflow-hidden">
-          {console.log("Projects in render:", projects)}
+          {projectsError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <FiAlertCircle className="text-red-500 mr-2" />
+                <p className="text-red-700 font-medium">
+                  {projectsError.message || projectsError}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <FiAlertCircle className="text-red-500 mr-2" />
+                <p className="text-red-700 font-medium">{error}</p>
+              </div>
+            </div>
+          )}
+
           <form
             onSubmit={handleSubmit}
-            className="divide-y bg-gray-50 divide-gray-200"
+            className="bg-gray-50 px-12 py-12 space-y-10"
           >
-            <div className="px-12 py-12 space-y-10">
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center">
-                    <FiAlertCircle className="text-red-500 mr-2" />
-                    <p className="text-red-700 font-medium">{error}</p>
-                  </div>
-                </div>
-              )}
+            <BasicInformation
+              formData={formData}
+              validationErrors={validationErrors}
+              handleInputChange={handleInputChange}
+            />
 
-              {/* Basic Information */}
-              <BasicInformation
-                formData={formData}
-                validationErrors={validationErrors}
-                handleInputChange={handleInputChange}
-              />
+            <ProjectSelection
+              formData={formData}
+              projects={projects || []}
+              handleProjectChange={handleProjectChange}
+              loading={projectsLoading}
+            />
 
-              {/* Project Selection */}
-              <ProjectSelection
-                formData={formData}
-                projects={projects}
-                handleProjectChange={handleProjectChange}
-              />
+            <TaskDetails
+              formData={formData}
+              validationErrors={validationErrors}
+              handleInputChange={handleInputChange}
+            />
 
-              {/* Task Details */}
-              <TaskDetails
-                formData={formData}
-                validationErrors={validationErrors}
-                handleInputChange={handleInputChange}
-              />
+            {renderAssigneesSection()}
 
-              {/* Assignees */}
-              {renderAssigneesSection()}
+            <AddSubtasks
+              subtasks={formData.subtasks}
+              onAddSubtask={handleAddSubtask}
+              onRemoveSubtask={handleRemoveSubtask}
+              onUpdateSubtask={handleUpdateSubtask}
+              onRemoveSubtaskAssignee={handleRemoveSubtaskAssignee}
+              assignedUsers={formData.assignedTo}
+              validationErrors={validationErrors}
+            />
 
-              {/* Subtasks */}
-              <AddSubtasks
-                subtasks={formData.subtasks}
-                onAddSubtask={handleAddSubtask}
-                onRemoveSubtask={handleRemoveSubtask}
-                onUpdateSubtask={handleUpdateSubtask}
-                onRemoveSubtaskAssignee={handleRemoveSubtaskAssignee}
-                assignedUsers={formData.assignedTo}
-                validationErrors={validationErrors}
-              />
-            </div>
-
-            {/* Form Actions */}
             <FormAction isCreating={isCreating} />
           </form>
         </div>
