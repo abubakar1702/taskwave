@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { FaUsers } from "react-icons/fa";
 import { IoCloseOutline } from "react-icons/io5";
@@ -8,24 +7,14 @@ import { HiOutlinePlus } from "react-icons/hi";
 import UserInitial from "../auth/UserInitial";
 import AddAssigneeModal from "./AddAssigneeModal";
 import ConfirmationModal from "../modals/ConfirmationModal";
+import { useApi } from "../../hooks/useApi";
 
 import {
   addAssignees,
   removeAssignee,
-  setAssignees,
 } from "../../features/task detail/taskDetailSlice";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
-const getAuthHeaders = () => {
-  const token =
-    localStorage.getItem("accessToken") ||
-    sessionStorage.getItem("accessToken");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-};
 
 const AssigneesSection = () => {
   const dispatch = useDispatch();
@@ -33,9 +22,6 @@ const AssigneesSection = () => {
   const currentUser = useSelector((state) => state.auth.user);
 
   const [assignees, setAssigneesLocal] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
@@ -46,31 +32,18 @@ const AssigneesSection = () => {
   const taskId = task?.id;
   const taskCreator = task?.creator?.id;
 
-  const fetchAssignees = async () => {
-    if (!taskId) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/task/${taskId}/assignees/`,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-      setAssigneesLocal(response.data || []);
-    } catch (err) {
-      setError(
-        err.response?.data || err.message || "Failed to fetch assignees"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, loading, error, refetch } = useApi(
+    taskId ? `${API_BASE_URL}/api/task/${taskId}/assignees/` : null,
+    "GET",
+    null,
+    [taskId]
+  );
 
   useEffect(() => {
-    fetchAssignees();
-  }, [taskId]);
+    if (data) {
+      setAssigneesLocal(data);
+    }
+  }, [data]);
 
   const handleAddAssignees = async (selectedUsers) => {
     if (!taskId || selectedUsers.length === 0) return;
@@ -81,10 +54,13 @@ const AssigneesSection = () => {
       const response = await dispatch(
         addAssignees({ taskId, assigneeIds })
       ).unwrap();
+
       setAssigneesLocal(
         response.assignees || assignees.concat(response.assignees || [])
       );
+
       setIsModalOpen(false);
+      refetch();
     } catch (error) {
       console.error("Failed to add assignees:", error);
     }
@@ -101,10 +77,13 @@ const AssigneesSection = () => {
       await dispatch(
         removeAssignee({ taskId, userId: confirmationModal.userId })
       ).unwrap();
+
       setAssigneesLocal(
         assignees.filter((user) => user.id !== confirmationModal.userId)
       );
+
       setConfirmationModal({ isOpen: false, userId: null, userName: "" });
+      refetch();
     } catch (error) {
       console.error("Failed to remove assignee:", error);
     }
@@ -167,7 +146,9 @@ const AssigneesSection = () => {
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-600 text-sm">{error}</p>
+          <p className="text-red-600 text-sm">
+            {error.message || "Failed to load assignees"}
+          </p>
         </div>
       )}
 

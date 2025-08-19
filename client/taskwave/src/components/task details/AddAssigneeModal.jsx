@@ -5,8 +5,8 @@ import {
   clearSelectedUsers,
   removeSelectedUser,
 } from "../../features/task detail/taskDetailSlice";
-import SearchUser from "../global/SearchUser";
 import UserSearch from "../new task/UserSearch";
+import { IoClose } from "react-icons/io5";
 
 const AddAssigneeModal = ({ isOpen, onClose, onAddAssignees }) => {
   const dispatch = useAppDispatch();
@@ -17,6 +17,7 @@ const AddAssigneeModal = ({ isOpen, onClose, onAddAssignees }) => {
   const { task } = useAppSelector((state) => state.taskDetail);
 
   const taskId = task?.id;
+  const projectId = task?.project?.id
 
   if (!isOpen) return null;
 
@@ -65,14 +66,14 @@ const AddAssigneeModal = ({ isOpen, onClose, onAddAssignees }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative mx-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Add Assignees</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Add Assignee(s)</h2>
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 rounded-full p-1 hover:bg-gray-100 transition-colors"
             disabled={loading}
             aria-label="Close modal"
           >
-            ✕
+            <IoClose />
           </button>
         </div>
 
@@ -83,6 +84,7 @@ const AddAssigneeModal = ({ isOpen, onClose, onAddAssignees }) => {
         )}
 
         <div className="mb-4">
+          {projectId && <p className="text-gray-500 text-xs py-2">Only the members from {task?.project?.title} can be added</p>}
           <UserSearch disabled={loading} />
         </div>
 

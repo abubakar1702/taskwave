@@ -1,46 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import axios from "axios";
-import { FiSearch, FiChevronDown, FiAlertCircle } from "react-icons/fi";
+import { FiSearch, FiAlertCircle } from "react-icons/fi";
+import { ClipLoader } from "react-spinners";
 import { useAppSelector, useAppDispatch } from "../../app/hooks";
 import { selectUser } from "../../features/task detail/taskDetailSlice";
 import UserInitial from "../auth/UserInitial";
+import { useApi } from "../../hooks/useApi";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
-const getAuthHeaders = () => {
-  const token =
-    localStorage.getItem("accessToken") ||
-    sessionStorage.getItem("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 const UserSearch = ({ disabled = false }) => {
   const dispatch = useAppDispatch();
   const { items, task } = useAppSelector((state) => state.taskDetail);
   const [currentAssignees, setCurrentAssignees] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [availableUsers, setAvailableUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const dropdownRef = useRef(null);
   const taskId = task?.id;
-
-  const fetchCurrentAssignees = useCallback(async () => {
-    if (!taskId) return;
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/task/${taskId}/assignees/`,
-        {
-          headers: getAuthHeaders(),
-        }
-      );
-      setCurrentAssignees(response.data || []);
-    } catch (err) {
-      console.error("Failed to fetch assignees:", err);
-    }
-  }, [taskId]);
 
   let projectId = null;
   if (task?.project) {
@@ -52,36 +29,44 @@ const UserSearch = ({ disabled = false }) => {
   }
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (searchQuery.length < 3) {
-        setAvailableUsers([]);
-        return;
-      }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
 
-      setLoading(true);
-      setError(null);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-      try {
-        await fetchCurrentAssignees();
+  const searchUrl =
+    debouncedQuery.length >= 3
+      ? `${API_BASE_URL}/api/users/search/?q=${encodeURIComponent(
+          debouncedQuery
+        )}${projectId ? `&project_id=${projectId}` : ""}`
+      : null;
 
-        const params = { q: searchQuery };
-        if (projectId) params.project_id = projectId;
+  const {
+    data: searchData,
+    loading: searchLoading,
+    error: searchError,
+    makeRequest,
+  } = useApi(searchUrl, "GET", null, [debouncedQuery, projectId]);
 
-        const response = await axios.get(`${API_BASE_URL}/api/users/search/`, {
-          params,
-          headers: getAuthHeaders(),
-        });
+  const assigneesUrl = taskId
+    ? `${API_BASE_URL}/api/task/${taskId}/assignees/`
+    : null;
+  const {
+    data: assigneesData,
+    loading: assigneesLoading,
+    error: assigneesError,
+    refetch: refetchAssignees,
+  } = useApi(assigneesUrl, "GET", null, [taskId]);
 
-        setAvailableUsers(response.data.results || response.data);
-      } catch (err) {
-        setError(err.response?.data || err.message || "Failed to fetch users");
-      } finally {
-        setLoading(false);
-      }
-    };
+  useEffect(() => {
+    if (assigneesData) {
+      setCurrentAssignees(assigneesData || []);
+    }
+  }, [assigneesData]);
 
-    fetchUsers();
-  }, [searchQuery, projectId, fetchCurrentAssignees]);
+  const availableUsers = searchData?.results || searchData || [];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -97,11 +82,14 @@ const UserSearch = ({ disabled = false }) => {
     if (e.key === "Escape") setIsDropdownOpen(false);
   }, []);
 
-  const handleSelect = (user) => {
-    dispatch(selectUser(user));
-    setSearchQuery("");
-    setIsDropdownOpen(false);
-  };
+  const handleSelect = useCallback(
+    (user) => {
+      dispatch(selectUser(user));
+      setSearchQuery("");
+      setIsDropdownOpen(false);
+    },
+    [dispatch]
+  );
 
   const handleInputChange = (e) => {
     setSearchQuery(e.target.value);
@@ -128,6 +116,10 @@ const UserSearch = ({ disabled = false }) => {
     const isAbsolute = user.avatar.startsWith("http");
     return isAbsolute ? user.avatar : `${API_BASE_URL}${user.avatar}`;
   };
+
+  const loading = searchLoading || assigneesLoading;
+
+  const error = searchError || assigneesError;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -159,22 +151,20 @@ const UserSearch = ({ disabled = false }) => {
           disabled={disabled}
           aria-label="Toggle dropdown"
         >
-          <FiChevronDown
-            className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
-              isDropdownOpen ? "rotate-180" : ""
-            }`}
-          />
+          <ClipLoader size={16} color="#9CA3AF" loading={loading} />
         </button>
       </div>
 
       {error && (
         <p className="mt-1 text-sm text-red-600 flex items-center">
           <FiAlertCircle className="mr-1 h-4 w-4" />
-          {typeof error === "string" ? error : "Failed to search users"}
+          {typeof error === "object"
+            ? error.message || "Failed to search users"
+            : error}
         </p>
       )}
 
-      {isDropdownOpen && (
+      {isDropdownOpen && searchQuery.trim().length > 0 && (
         <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-y-auto border border-gray-200 sm:text-sm">
           {searchQuery.length < 3 ? (
             <div className="px-4 py-3 text-gray-500 text-center">
@@ -182,7 +172,7 @@ const UserSearch = ({ disabled = false }) => {
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="px-4 py-3 text-gray-500 text-center">
-              {loading ? (
+              {searchLoading ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                   <span>Searching...</span>
