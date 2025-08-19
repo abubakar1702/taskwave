@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApi } from "../hooks/useApi";
 import { useNavigate } from "react-router-dom";
 import { FiUser, FiFileText, FiAlertCircle } from "react-icons/fi";
@@ -40,6 +40,32 @@ const NewTask = () => {
     makeRequest,
   } = useApi(`${API_BASE_URL}/api/projects/`, "GET");
 
+  const {
+    data: projectData,
+    loading: isLoadingMembers,
+    error: projectMembersError,
+    refetch: refetchProjectMembers,
+  } = useApi(
+    formData.project ? `${API_BASE_URL}/api/project/${formData.project}` : null,
+    "GET",
+    null,
+    [formData.project]
+  );
+
+  const selectedProjectId = formData.project;
+
+  const projectMembers = useMemo(() => {
+    return projectData?.members?.map((member) => member.user) || [];
+  }, [projectData]);
+
+  useEffect(() => {
+    if (selectedProjectId && projectData) {
+      setFormData((prev) => ({
+        ...prev,
+        assignedTo: projectMembers,
+      }));
+    }
+  }, [selectedProjectId, projectData, projectMembers]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -57,11 +83,9 @@ const NewTask = () => {
     setFormData((prev) => ({
       ...prev,
       project: projectId,
-      assignedTo: [],
       subtasks: prev.subtasks.map((st) => ({ ...st, assignedTo: null })),
     }));
   };
-
   const handleUserSelect = (user) => {
     if (!formData.assignedTo.find((u) => u.id === user.id)) {
       setFormData((prev) => ({
@@ -146,15 +170,26 @@ const NewTask = () => {
 
       if (subtask.assignedTo) {
         const assigneeId = subtask.assignedTo.id;
-        const isAssignedToMainTask = formData.assignedTo.some(
-          (u) => u.id === assigneeId
-        );
-        const isCurrentUser = currentUser && currentUser.id === assigneeId;
+        const isCurrentUser = currentUser?.id === assigneeId;
 
-        if (!isAssignedToMainTask && !isCurrentUser) {
-          errors[`subtask_assignee_${index}`] =
-            "Assignee must be assigned to main task";
-          isValid = false;
+        if (selectedProjectId) {
+          const isProjectMember = projectMembers.some(
+            (user) => user.id === assigneeId
+          );
+          if (!isProjectMember && !isCurrentUser) {
+            errors[`subtask_assignee_${index}`] =
+              "Subtask assignee must be a member of the selected project.";
+            isValid = false;
+          }
+        } else {
+          const isAssignedToMainTask = formData.assignedTo.some(
+            (u) => u.id === assigneeId
+          );
+          if (!isAssignedToMainTask && !isCurrentUser) {
+            errors[`subtask_assignee_${index}`] =
+              "Assignee must be assigned to the main task.";
+            isValid = false;
+          }
         }
       }
     });
@@ -200,22 +235,6 @@ const NewTask = () => {
       setIsCreating(false);
     }
   };
-
-  const renderAssigneesSection = () => (
-    <div>
-      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-        <FiUser className="text-blue-400" /> Assign Team Members
-      </h3>
-      <UserSearch
-        selectedUsers={formData.assignedTo}
-        onSelectUser={handleUserSelect}
-        onRemoveUser={handleUserRemove}
-        projectId={formData.project || null}
-        placeholder="Search team members..."
-        error={validationErrors.assignedTo}
-      />
-    </div>
-  );
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 to-blue-50">
@@ -275,7 +294,21 @@ const NewTask = () => {
               handleInputChange={handleInputChange}
             />
 
-            {renderAssigneesSection()}
+            {!selectedProjectId && (
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <FiUser className="text-blue-400" /> Assign Team Members
+                </h3>
+                <UserSearch
+                  selectedUsers={formData.assignedTo}
+                  onSelectUser={handleUserSelect}
+                  onRemoveUser={handleUserRemove}
+                  projectId={formData.project || null}
+                  placeholder="Search team members..."
+                  error={validationErrors.assignedTo}
+                />
+              </div>
+            )}
 
             <AddSubtasks
               subtasks={formData.subtasks}
@@ -285,9 +318,12 @@ const NewTask = () => {
               onRemoveSubtaskAssignee={handleRemoveSubtaskAssignee}
               assignedUsers={formData.assignedTo}
               validationErrors={validationErrors}
+              projectMembers={projectMembers}
+              isLoadingMembers={isLoadingMembers}
+              selectedProject={formData.project}
             />
 
-            <FormAction isCreating={isCreating} />
+            <FormAction isCreating={isCreating || isLoadingMembers} />
           </form>
         </div>
       </main>

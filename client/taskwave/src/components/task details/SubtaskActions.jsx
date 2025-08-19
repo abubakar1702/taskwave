@@ -1,13 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
+import UserInitial from "../auth/UserInitial";
 import {
   HiOutlineDotsVertical,
   HiPencilAlt,
   HiTrash,
   HiUserRemove,
 } from "react-icons/hi";
-import { toast } from "react-toastify";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 const SubtaskActions = ({
   subtask,
@@ -16,9 +14,9 @@ const SubtaskActions = ({
   openDropdowns,
   setOpenDropdowns,
   handleAssignSubtask,
-  setPatchUrl,
-  setPatchBody,
-  unassign,
+  onEditClick,
+  onDeleteClick,
+  onUnassignClick,
 }) => {
   const menuRef = useRef(null);
   const [dropdownPosition, setDropdownPosition] = useState("bottom");
@@ -29,9 +27,9 @@ const SubtaskActions = ({
   useEffect(() => {
     if (openDropdowns[`menu-${subtask.id}`] && menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 200;
-      setDropdownPosition(spaceBelow < dropdownHeight ? "top" : "bottom");
+      setDropdownPosition(
+        window.innerHeight - rect.bottom < 200 ? "top" : "bottom"
+      );
     }
   }, [openDropdowns, subtask.id]);
 
@@ -43,13 +41,12 @@ const SubtaskActions = ({
   };
 
   const handleDelete = () => {
-    setPatchUrl(`${API_BASE_URL}/api/tasks/${task.id}/subtask/${subtask.id}/`);
-    setPatchBody({ _delete: true });
+    onDeleteClick(subtask);
     setOpenDropdowns((prev) => ({ ...prev, [`menu-${subtask.id}`]: false }));
   };
 
   const handleEdit = () => {
-    toast.info("Edit subtask feature coming soon");
+    onEditClick(subtask.id);
     setOpenDropdowns((prev) => ({ ...prev, [`menu-${subtask.id}`]: false }));
   };
 
@@ -87,7 +84,7 @@ const SubtaskActions = ({
           />
 
           <div
-            className={`absolute right-0 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 ${
+            className={`absolute right-0 min-w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 ${
               dropdownPosition === "top" ? "bottom-full mb-1" : "top-full mt-1"
             }`}
           >
@@ -107,46 +104,62 @@ const SubtaskActions = ({
                   <HiTrash className="w-4 h-4" />
                   Delete
                 </button>
-                <button
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-sky-600 hover:bg-gray-50"
-                  onClick={() => {
-                    unassign(subtask.id);
-                    setOpenDropdowns((prev) => ({
-                      ...prev,
-                      [`menu-${subtask.id}`]: false,
-                    }));
-                  }}
-                >
-                  <HiUserRemove className="w-4 h-4" />
-                  Unassign
-                </button>
-              </>
-            )}
-
-            {assignableUsers.length > 0 && (
-              <div className="border-t border-gray-100" />
-            )}
-            {assignableUsers.length > 0 && (
-              <div className="py-1">
-                <h1 className="px-3 py-2 text-xs text-gray-500">
-                  Select Assignee
-                </h1>
-                {assignableUsers.map((user) => (
+                {subtask.assigned_to && (
                   <button
-                    key={user.id}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-sky-600 hover:bg-gray-50"
                     onClick={() => {
-                      handleAssignSubtask(subtask.id, user.id);
+                      onUnassignClick(subtask.id);
                       setOpenDropdowns((prev) => ({
                         ...prev,
                         [`menu-${subtask.id}`]: false,
                       }));
                     }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {user.first_name} {user.last_name}
+                    <HiUserRemove className="w-4 h-4" />
+                    Unassign
                   </button>
-                ))}
-              </div>
+                )}
+              </>
+            )}
+
+            {assignableUsers.length > 0 && (
+              <>
+                <div className="border-t border-gray-100" />
+                <div className="py-1">
+                  <h1 className="px-3 py-2 text-xs text-gray-500">
+                    Select Assignee
+                  </h1>
+                  {assignableUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => {
+                        handleAssignSubtask(subtask.id, user.id);
+                        setOpenDropdowns((prev) => ({
+                          ...prev,
+                          [`menu-${subtask.id}`]: false,
+                        }));
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={`${user.first_name} ${user.last_name}`}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
+                      ) : (
+                        <UserInitial
+                          user={user.first_name || user.username}
+                          className="w-6 h-6 text-xs"
+                        />
+                      )}
+                      <span>
+                        {user.first_name} {user.last_name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </>

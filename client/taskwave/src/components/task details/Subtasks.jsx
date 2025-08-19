@@ -36,7 +36,9 @@ const Subtasks = ({ task }) => {
   const [subtaskToDelete, setSubtaskToDelete] = useState(null);
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+    const token =
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("accessToken");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
@@ -44,9 +46,13 @@ const Subtasks = ({ task }) => {
 
   const handleAddNewSubtask = async (subtask) => {
     try {
-      await axios.post(`${API_BASE_URL}/api/task/${task.id}/subtasks/`, subtask, {
-        headers: getAuthHeaders(),
-      });
+      await axios.post(
+        `${API_BASE_URL}/api/task/${task.id}/subtasks/`,
+        subtask,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
       refreshTask();
       toast.success("Subtask added successfully");
     } catch (error) {
@@ -54,7 +60,11 @@ const Subtasks = ({ task }) => {
     }
   };
 
-  const toggleSubtaskCompletion = async (subtaskId, currentStatus, assignedTo) => {
+  const toggleSubtaskCompletion = async (
+    subtaskId,
+    currentStatus,
+    assignedTo
+  ) => {
     if (!assignedTo || assignedTo.id !== currentUser?.id) {
       toast.error("You can only update subtasks assigned to you");
       return;
@@ -164,8 +174,8 @@ const Subtasks = ({ task }) => {
   const renderAvatar = (user, size = "6") => {
     if (!user) return null;
     if (user.avatar) {
-      const avatarUrl = user.avatar.startsWith("http") 
-        ? user.avatar 
+      const avatarUrl = user.avatar.startsWith("http")
+        ? user.avatar
         : `${API_BASE_URL}${user.avatar}`;
       return (
         <img
@@ -175,16 +185,22 @@ const Subtasks = ({ task }) => {
         />
       );
     }
-    const initial = user.first_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || "U";
+    const initial =
+      user.first_name?.[0]?.toUpperCase() ||
+      user.username?.[0]?.toUpperCase() ||
+      "U";
     return (
-      <div className={`w-${size} h-${size} rounded-full border border-gray-200 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium`}>
+      <div
+        className={`w-${size} h-${size} rounded-full border border-gray-200 bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium`}
+      >
         {initial}
       </div>
     );
   };
 
   const getUserDisplayName = (user) => {
-    if (user.first_name || user.last_name) return `${user.first_name} ${user.last_name}`.trim();
+    if (user.first_name || user.last_name)
+      return `${user.first_name} ${user.last_name}`.trim();
     return user.username;
   };
 
@@ -199,17 +215,31 @@ const Subtasks = ({ task }) => {
     const isEditing = editingSubtask === subtask.id;
 
     return (
-      <div className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
-        isEditing ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100 hover:border-gray-200"
-      }`}>
+      <div
+        className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
+          isEditing
+            ? "bg-blue-50 border-blue-200"
+            : "bg-gray-50 border-gray-100 hover:border-gray-200"
+        }`}
+      >
         {canToggle && !isEditing && (
           <button
-            onClick={() => toggleSubtaskCompletion(subtask.id, subtask.is_completed, subtask.assigned_to)}
+            onClick={() =>
+              toggleSubtaskCompletion(
+                subtask.id,
+                subtask.is_completed,
+                subtask.assigned_to
+              )
+            }
             className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mt-0.5 ${
-              subtask.is_completed ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-500"
+              subtask.is_completed
+                ? "bg-green-500 border-green-500 text-white"
+                : "border-gray-300 hover:border-green-500"
             }`}
           >
-            {subtask.is_completed && <HiOutlineCheckCircle className="w-3 h-3" />}
+            {subtask.is_completed && (
+              <HiOutlineCheckCircle className="w-3 h-3" />
+            )}
           </button>
         )}
 
@@ -231,19 +261,29 @@ const Subtasks = ({ task }) => {
                 />
               </div>
             ) : (
-              <h4 className={`text-sm font-medium flex-1 ${
-                subtask.is_completed ? "line-through text-gray-500" : "text-gray-900"
-              }`}>
+              <h4
+                className={`text-sm font-medium flex-1 ${
+                  subtask.is_completed
+                    ? "line-through text-gray-500"
+                    : "text-gray-900"
+                }`}
+              >
                 {subtask.title}
               </h4>
             )}
 
             {isEditing ? (
               <div className="flex items-center gap-2">
-                <button onClick={handleSaveEdit} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <button
+                  onClick={handleSaveEdit}
+                  className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
                   <HiCheck className="w-4 h-4" />
                 </button>
-                <button onClick={handleCancelEdit} className="p-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                <button
+                  onClick={handleCancelEdit}
+                  className="p-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
                   <HiX className="w-4 h-4" />
                 </button>
               </div>
@@ -280,7 +320,10 @@ const Subtasks = ({ task }) => {
                 </div>
               )}
               <span className="text-[11px] text-gray-400">
-                {format(new Date(subtask.created_at), "MMM dd, yyyy 'at' HH:mm")}
+                {format(
+                  new Date(subtask.created_at),
+                  "MMM dd, yyyy 'at' HH:mm"
+                )}
               </span>
             </div>
           )}
@@ -318,19 +361,29 @@ const Subtasks = ({ task }) => {
 
         {isExpanded && (
           <div className="mt-3 space-y-3">
-            {subtasks.map((subtask) => renderSubtaskItem(subtask, canToggle))}
+            {subtasks.map((subtask) => (
+              <div key={subtask.id}>
+                {renderSubtaskItem(subtask, canToggle)}
+              </div>
+            ))}
           </div>
         )}
       </div>
     );
   };
 
-  const assignedToMe = task.subtasks?.filter((s) => s.assigned_to?.id === currentUser?.id) || [];
-  const assignedToTeam = task.subtasks?.filter((s) => s.assigned_to && s.assigned_to.id !== currentUser?.id) || [];
+  const assignedToMe =
+    task.subtasks?.filter((s) => s.assigned_to?.id === currentUser?.id) || [];
+  const assignedToTeam =
+    task.subtasks?.filter(
+      (s) => s.assigned_to && s.assigned_to.id !== currentUser?.id
+    ) || [];
   const unassigned = task.subtasks?.filter((s) => !s.assigned_to) || [];
   const totalSubtasks = task.subtasks?.length || 0;
-  const completedSubtasks = task.subtasks?.filter((s) => s.is_completed).length || 0;
-  const overallProgress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+  const completedSubtasks =
+    task.subtasks?.filter((s) => s.is_completed).length || 0;
+  const overallProgress =
+    totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -372,14 +425,23 @@ const Subtasks = ({ task }) => {
           </div>
 
           {renderCategory("Assigned to Me", assignedToMe, "assignedToMe", true)}
-          {renderCategory("Assigned to Team", assignedToTeam, "assignedToTeam", false)}
+          {renderCategory(
+            "Assigned to Team",
+            assignedToTeam,
+            "assignedToTeam",
+            false
+          )}
           {renderCategory("Unassigned", unassigned, "unassigned", false)}
         </>
       ) : (
         <div className="text-center py-12">
           <HiOutlineCheckCircle className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No subtasks yet</h3>
-          <p className="text-gray-600 mb-4">Break down this task into smaller, manageable pieces</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No subtasks yet
+          </h3>
+          <p className="text-gray-600 mb-4">
+            Break down this task into smaller, manageable pieces
+          </p>
           {task?.creator?.id === currentUser?.id && (
             <button
               onClick={() => setIsModalOpen(true)}

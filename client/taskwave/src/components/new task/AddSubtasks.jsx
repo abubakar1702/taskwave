@@ -12,6 +12,9 @@ const AddSubtasks = ({
   onRemoveSubtaskAssignee,
   assignedUsers,
   validationErrors,
+  projectMembers,
+  selectedProject,
+  isLoadingMembers,
 }) => {
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
@@ -24,22 +27,15 @@ const AddSubtasks = ({
 
     let selectedUser = null;
 
+    const potentialAssignees = [
+      ...(selectedProject ? projectMembers : assignedUsers),
+      currentUser,
+    ].filter(Boolean);
+
     if (newSubtaskAssignee) {
-      selectedUser = assignedUsers.find(
-        (user) => user.id === newSubtaskAssignee
+      selectedUser = potentialAssignees.find(
+        (user) => user?.id === newSubtaskAssignee
       );
-      if (!selectedUser && currentUser?.id === newSubtaskAssignee) {
-        selectedUser = currentUser;
-      }
-
-      if (!selectedUser) {
-        const assigneeId = parseInt(newSubtaskAssignee);
-        selectedUser = assignedUsers.find((user) => user.id === assigneeId);
-
-        if (!selectedUser && currentUser?.id === assigneeId) {
-          selectedUser = currentUser;
-        }
-      }
     }
 
     onAddSubtask({
@@ -65,6 +61,10 @@ const AddSubtasks = ({
       <UserInitial className="w-6 h-6" />
     );
   };
+
+  const subtaskAssigneeOptions = selectedProject
+    ? projectMembers
+    : assignedUsers;
 
   return (
     <div>
@@ -162,17 +162,27 @@ const AddSubtasks = ({
                     : "border-gray-200 focus:ring-blue-500 focus:border-transparent bg-white"
                 }`}
                 placeholder="Add a new subtask"
+                disabled={isLoadingMembers}
               />
             </div>
             <button
               type="button"
               onClick={handleAddSubtask}
-              disabled={!newSubtask.trim()}
-              className="inline-flex items-center px-4 py-3 border border-transparent text-sm leading-4 font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              disabled={!newSubtask.trim() || isLoadingMembers}
+              className={`inline-flex items-center px-4 py-3 border border-transparent text-sm leading-4 font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                (!newSubtask.trim() || isLoadingMembers) &&
+                "opacity-50 cursor-not-allowed"
+              }`}
             >
               <FaPlus className="mr-2" /> Add
             </button>
           </div>
+
+          {isLoadingMembers && (
+            <p className="mt-2 text-sm text-blue-600">
+              Loading project members...
+            </p>
+          )}
 
           {validationErrors.newSubtask && (
             <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -186,9 +196,9 @@ const AddSubtasks = ({
               value={newSubtaskAssignee}
               onChange={(e) => setNewSubtaskAssignee(e.target.value)}
               className="block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-lg bg-white"
+              disabled={isLoadingMembers}
             >
               <option value="">Unassigned</option>
-
               {currentUser && (
                 <option value={currentUser.id}>
                   {currentUser.first_name || currentUser.last_name
@@ -198,8 +208,7 @@ const AddSubtasks = ({
                     : currentUser.username}
                 </option>
               )}
-
-              {assignedUsers
+              {subtaskAssigneeOptions
                 .filter((user) => user.id !== currentUser?.id)
                 .map((user) => (
                   <option key={user.id} value={user.id}>

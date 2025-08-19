@@ -11,6 +11,7 @@ import TaskInfoCard from "../components/task details/TaskInfoCard";
 import EditTaskModal from "../components/update tasks/EditTaskModal";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ConfirmationModal from "../components/modals/ConfirmationModal";
+import { useApi } from "../hooks/useApi";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { fetchTaskDetail } from "../features/task detail/taskDetailSlice";
@@ -27,7 +28,7 @@ const TaskDetails = () => {
   const dispatch = useAppDispatch();
   const { task, loading, error } = useAppSelector((state) => state.taskDetail);
 
-  console.log(task)
+  const { makeRequest } = useApi();
 
   useEffect(() => {
     if (id) {
@@ -38,10 +39,17 @@ const TaskDetails = () => {
   const handleEditTask = () => setIsEditModalOpen(true);
 
   const handleTaskDelete = useCallback(async () => {
-    await fetch(`${API_BASE_URL}/api/tasks/${id}/`, { method: "DELETE" });
-    toast.success("Task deleted successfully!");
-    navigate("/tasks");
-  }, [navigate, id]);
+    try {
+      await makeRequest(`${API_BASE_URL}/api/tasks/${id}/`, "DELETE");
+      toast.success("Task deleted successfully!");
+      navigate("/tasks");
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+      toast.error("Failed to delete task. Please try again.");
+    } finally {
+      setIsDeleteModalOpen(false);
+    }
+  }, [navigate, id, makeRequest]);
 
   const handleTaskUpdate = useCallback(() => {
     dispatch(fetchTaskDetail({ taskId: id }));
