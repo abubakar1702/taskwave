@@ -64,6 +64,11 @@ const NewTask = () => {
         ...prev,
         assignedTo: projectMembers,
       }));
+    } else if (!selectedProjectId) {
+      setFormData((prev) => ({
+        ...prev,
+        assignedTo: [],
+      }));
     }
   }, [selectedProjectId, projectData, projectMembers]);
 
