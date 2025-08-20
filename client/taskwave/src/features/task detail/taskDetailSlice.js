@@ -87,6 +87,22 @@ export const removeAssignee = createAsyncThunk(
   }
 );
 
+export const leaveTask = createAsyncThunk(
+  "taskDetail/leaveTask",
+  async ({ taskId, userId }, { rejectWithValue, dispatch }) => {
+    try {
+      await axios.delete(
+        `${API_BASE_URL}/api/task/${taskId}/assignees/${userId}/remove/`,
+        { headers: getAuthHeaders() }
+      );
+
+      return { userId };
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
 export const fetchAvailableUsers = createAsyncThunk(
   "taskDetail/fetchAvailableUsers",
   async ({ projectId, taskId, query }, { rejectWithValue }) => {
@@ -141,6 +157,11 @@ const taskDetailSlice = createSlice({
     },
     clearAvailableUsers: (state) => {
       state.availableUsers = [];
+    },
+    updateTaskAssignees: (state, action) => {
+      if (state.task) {
+        state.task.assignees = action.payload;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -229,6 +250,22 @@ const taskDetailSlice = createSlice({
           action.payload?.detail ||
           action.error.message ||
           "Something went wrong";
+      })
+      .addCase(leaveTask.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(leaveTask.fulfilled, (state, action) => {
+        state.loading = false;
+        if (state.task && state.task.assignees) {
+          state.task.assignees = state.task.assignees.filter(
+            (assignee) => assignee.id !== action.payload.userId
+          );
+        }
+      })
+      .addCase(leaveTask.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
   },
 });

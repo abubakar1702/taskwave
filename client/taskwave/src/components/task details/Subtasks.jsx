@@ -29,7 +29,6 @@ const Subtasks = ({ task }) => {
     unassigned: true,
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [openDropdowns, setOpenDropdowns] = useState({});
   const [editingSubtask, setEditingSubtask] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -111,9 +110,8 @@ const Subtasks = ({ task }) => {
     }
   };
 
-  const handleEditClick = (subtaskId) => {
-    const subtask = task.subtasks.find((s) => s.id === subtaskId);
-    setEditingSubtask(subtaskId);
+  const handleEditClick = (subtask) => {
+    setEditingSubtask(subtask.id);
     setEditTitle(subtask.title);
   };
 
@@ -164,11 +162,6 @@ const Subtasks = ({ task }) => {
       setShowDeleteModal(false);
       setSubtaskToDelete(null);
     }
-  };
-
-  const cancelDelete = () => {
-    setShowDeleteModal(false);
-    setSubtaskToDelete(null);
   };
 
   const renderAvatar = (user, size = "6") => {
@@ -244,7 +237,7 @@ const Subtasks = ({ task }) => {
         )}
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
+          <div className="flex mb-3 items-center justify-between">
             {isEditing ? (
               <div className="flex-1 mr-3">
                 <input
@@ -272,7 +265,7 @@ const Subtasks = ({ task }) => {
               </h4>
             )}
 
-            {isEditing ? (
+            {isEditing && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSaveEdit}
@@ -287,23 +280,11 @@ const Subtasks = ({ task }) => {
                   <HiX className="w-4 h-4" />
                 </button>
               </div>
-            ) : (
-              <SubtaskActions
-                subtask={subtask}
-                task={task}
-                currentUser={currentUser}
-                openDropdowns={openDropdowns}
-                setOpenDropdowns={setOpenDropdowns}
-                handleAssignSubtask={handleAssignSubtask}
-                onEditClick={handleEditClick}
-                onDeleteClick={handleDeleteSubtask}
-                onUnassignClick={handleUnassign}
-              />
             )}
           </div>
 
           {!isEditing && (
-            <div className="flex justify-between flex-wrap gap-4 text-xs text-gray-500">
+            <div className="flex justify-between items-center flex-wrap gap-4 text-xs text-gray-500">
               {subtask.assigned_to ? (
                 <div className="flex items-center gap-1.5">
                   {renderAvatar(subtask.assigned_to)}
@@ -319,12 +300,23 @@ const Subtasks = ({ task }) => {
                   <span className="text-gray-400 italic">Unassigned</span>
                 </div>
               )}
-              <span className="text-[11px] text-gray-400">
-                {format(
-                  new Date(subtask.created_at),
-                  "MMM dd, yyyy 'at' HH:mm"
-                )}
-              </span>
+              <div className="relative flex items-center gap-2">
+                <div className="text-[11px] text-gray-400">
+                  {format(
+                    new Date(subtask.created_at),
+                    "MMM dd, yyyy 'at' HH:mm"
+                  )}
+                </div>
+                <SubtaskActions
+                  subtask={subtask}
+                  taskCreatorId={task.creator?.id}
+                  taskAssignees={task.assignees}
+                  onEdit={() => handleEditClick(subtask)}
+                  onDelete={() => handleDeleteSubtask(subtask)}
+                  onUnassign={() => handleUnassign(subtask.id)}
+                  onAssign={(userId) => handleAssignSubtask(subtask.id, userId)}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -464,9 +456,13 @@ const Subtasks = ({ task }) => {
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete Subtask"
-        message={`Are you sure you want to delete this subtask? This action cannot be undone.`}
+        message="This subtask will be permanently removed."
+        confirmText="Delete"
+        confirmLoadingText="Deleting..."
+        successMessage="Subtask deleted successfully!"
+        errorMessage="Failed to delete subtask."
         onConfirm={confirmDelete}
-        onCancel={cancelDelete}
+        onCancel={() => setShowDeleteModal(false)}
       />
     </div>
   );
