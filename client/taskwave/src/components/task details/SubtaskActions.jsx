@@ -1,166 +1,189 @@
-import React, { useRef, useState, useEffect } from "react";
-import UserInitial from "../auth/UserInitial";
+import React, { useState, useRef, useEffect } from "react";
 import {
-  HiOutlineDotsVertical,
+  HiOutlineDotsHorizontal,
   HiPencilAlt,
   HiTrash,
   HiUserRemove,
 } from "react-icons/hi";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 
 const SubtaskActions = ({
   subtask,
-  task,
-  currentUser,
-  openDropdowns,
-  setOpenDropdowns,
-  handleAssignSubtask,
-  onEditClick,
-  onDeleteClick,
-  onUnassignClick,
+  taskCreatorId,
+  taskAssignees,
+  onEdit,
+  onDelete,
+  onUnassign,
+  onAssign,
 }) => {
-  const menuRef = useRef(null);
+  const { currentUser } = useCurrentUser();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState("bottom");
-
-  const canShowMenu =
-    task.creator?.id === currentUser?.id || !subtask.assigned_to;
+  const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
 
   useEffect(() => {
-    if (openDropdowns[`menu-${subtask.id}`] && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      setDropdownPosition(
-        window.innerHeight - rect.bottom < 200 ? "top" : "bottom"
-      );
+    if (isDropdownOpen) {
+      const dropdownElement = dropdownRef.current;
+      const buttonElement = buttonRef.current;
+
+      if (!dropdownElement || !buttonElement) return;
+
+      const viewportHeight = window.innerHeight;
+      const spaceBelow =
+        viewportHeight - buttonElement.getBoundingClientRect().bottom;
+      const dropdownHeight = dropdownElement.offsetHeight;
+
+      if (spaceBelow < dropdownHeight + 20) {
+        setDropdownPosition("top");
+      } else {
+        setDropdownPosition("bottom");
+      }
     }
-  }, [openDropdowns, subtask.id]);
+  }, [isDropdownOpen]);
 
   const toggleDropdown = () => {
-    setOpenDropdowns((prev) => ({
-      ...prev,
-      [`menu-${subtask.id}`]: !prev[`menu-${subtask.id}`],
-    }));
+    setIsDropdownOpen(!isDropdownOpen);
   };
 
-  const handleDelete = () => {
-    onDeleteClick(subtask);
-    setOpenDropdowns((prev) => ({ ...prev, [`menu-${subtask.id}`]: false }));
+  const closeDropdown = () => {
+    setIsDropdownOpen(false);
   };
 
-  const handleEdit = () => {
-    onEditClick(subtask.id);
-    setOpenDropdowns((prev) => ({ ...prev, [`menu-${subtask.id}`]: false }));
+  const getUserDisplayName = (user) => {
+    if (user.first_name || user.last_name) {
+      return `${user.first_name} ${user.last_name}`.trim();
+    }
+    return user.username;
   };
 
-  const assignableUsers =
-    task.creator?.id === currentUser?.id
-      ? [...task.assignees, task.creator].filter(
-          (u, index, self) =>
-            u && self.findIndex((t) => t.id === u.id) === index
-        )
-      : subtask.assigned_to
-      ? []
-      : [currentUser];
+  const renderAvatar = (user, size = "6") => {
+    if (!user) return null;
+    const initial =
+      user.first_name?.[0]?.toUpperCase() ||
+      user.username?.[0]?.toUpperCase() ||
+      "U";
+    return (
+      <div
+        className={`w-${size} h-${size} rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium`}
+      >
+        {initial}
+      </div>
+    );
+  };
 
-  if (!canShowMenu) return null;
+  const assignableUsers = (() => {
+    if (taskCreatorId === currentUser?.id) {
+      const users = [...taskAssignees, currentUser]
+        .filter(Boolean)
+        .filter(
+          (u, index, self) => self.findIndex((t) => t.id === u.id) === index
+        );
+      return users.filter((u) => u.id !== subtask.assigned_to?.id);
+    } else if (!subtask.assigned_to && currentUser) {
+      const isCurrentUserAssignedToParentTask = taskAssignees.some(
+        (u) => u.id === currentUser.id
+      );
+      if (isCurrentUserAssignedToParentTask) {
+        return [currentUser];
+      }
+      return [];
+    }
+    return [];
+  })();
+
+  const canEditOrDelete = taskCreatorId === currentUser?.id;
+  const canUnassign = taskCreatorId === currentUser?.id && subtask.assigned_to;
+
+  const showAssigneeActions =
+    (canEditOrDelete && taskAssignees.length > 0) || assignableUsers.length > 0;
+  const showDropdown = canEditOrDelete || showAssigneeActions || canUnassign;
+
+  if (!showDropdown) {
+    return null;
+  }
+
+  const dropdownClasses =
+    dropdownPosition === "top"
+      ? "absolute right-0 bottom-full mb-2"
+      : "absolute right-0 top-full mt-2";
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={toggleDropdown}
         className="p-1 hover:bg-gray-100 rounded-full transition-colors"
       >
-        <HiOutlineDotsVertical className="w-5 h-5 text-gray-500" />
+        <HiOutlineDotsHorizontal className="w-4 h-4 text-gray-400 hover:text-gray-600" />
       </button>
 
-      {openDropdowns[`menu-${subtask.id}`] && (
+      {isDropdownOpen && (
         <>
+          <div className="fixed inset-0 z-10" onClick={closeDropdown} />
           <div
-            className="fixed inset-0 z-10"
-            onClick={() =>
-              setOpenDropdowns((prev) => ({
-                ...prev,
-                [`menu-${subtask.id}`]: false,
-              }))
-            }
-          />
-
-          <div
-            className={`absolute right-0 min-w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 ${
-              dropdownPosition === "top" ? "bottom-full mb-1" : "top-full mt-1"
-            }`}
+            ref={dropdownRef}
+            className={`${dropdownClasses} min-w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20`}
           >
-            {task.creator?.id === currentUser?.id && (
-              <>
-                <button
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  onClick={handleEdit}
-                >
-                  <HiPencilAlt className="w-4 h-4" />
-                  Edit
-                </button>
-                <button
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-gray-50"
-                  onClick={handleDelete}
-                >
-                  <HiTrash className="w-4 h-4" />
-                  Delete
-                </button>
-                {subtask.assigned_to && (
+            <div className="py-1">
+              {canEditOrDelete && (
+                <>
                   <button
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-sky-600 hover:bg-gray-50"
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     onClick={() => {
-                      onUnassignClick(subtask.id);
-                      setOpenDropdowns((prev) => ({
-                        ...prev,
-                        [`menu-${subtask.id}`]: false,
-                      }));
+                      onEdit();
+                      closeDropdown();
                     }}
                   >
-                    <HiUserRemove className="w-4 h-4" />
-                    Unassign
+                    <HiPencilAlt className="w-4 h-4" />
+                    Edit
                   </button>
-                )}
-              </>
-            )}
-
-            {assignableUsers.length > 0 && (
-              <>
-                <div className="border-t border-gray-100" />
-                <div className="py-1">
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-gray-50"
+                    onClick={() => {
+                      onDelete();
+                      closeDropdown();
+                    }}
+                  >
+                    <HiTrash className="w-4 h-4" />
+                    Delete
+                  </button>
+                </>
+              )}
+              {canUnassign && (
+                <button
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-sky-600 hover:bg-gray-50"
+                  onClick={() => {
+                    onUnassign();
+                    closeDropdown();
+                  }}
+                >
+                  <HiUserRemove className="w-4 h-4" />
+                  Unassign
+                </button>
+              )}
+              {showAssigneeActions && assignableUsers.length > 0 && (
+                <>
+                  <div className="border-t border-gray-100 my-1" />
                   <h1 className="px-3 py-2 text-xs text-gray-500">
-                    Select Assignee
+                    {subtask.assigned_to ? "Change Assignee" : "Assign to"}
                   </h1>
                   {assignableUsers.map((user) => (
                     <button
                       key={user.id}
                       onClick={() => {
-                        handleAssignSubtask(subtask.id, user.id);
-                        setOpenDropdowns((prev) => ({
-                          ...prev,
-                          [`menu-${subtask.id}`]: false,
-                        }));
+                        onAssign(user.id);
+                        closeDropdown();
                       }}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={`${user.first_name} ${user.last_name}`}
-                          className="w-6 h-6 rounded-full object-cover"
-                        />
-                      ) : (
-                        <UserInitial
-                          user={user.first_name || user.username}
-                          className="w-6 h-6 text-xs"
-                        />
-                      )}
-                      <span>
-                        {user.first_name} {user.last_name}
-                      </span>
+                      {renderAvatar(user)}
+                      <span>{getUserDisplayName(user)}</span>
                     </button>
                   ))}
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
