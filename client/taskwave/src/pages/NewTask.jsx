@@ -44,7 +44,6 @@ const NewTask = () => {
     data: projectData,
     loading: isLoadingMembers,
     error: projectMembersError,
-    refetch: refetchProjectMembers,
   } = useApi(
     formData.project ? `${API_BASE_URL}/api/project/${formData.project}` : null,
     "GET",
@@ -59,18 +58,13 @@ const NewTask = () => {
   }, [projectData]);
 
   useEffect(() => {
-    if (selectedProjectId && projectData) {
-      setFormData((prev) => ({
-        ...prev,
-        assignedTo: projectMembers,
-      }));
-    } else if (!selectedProjectId) {
+    if (!selectedProjectId) {
       setFormData((prev) => ({
         ...prev,
         assignedTo: [],
       }));
     }
-  }, [selectedProjectId, projectData, projectMembers]);
+  }, [selectedProjectId]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -91,6 +85,7 @@ const NewTask = () => {
       subtasks: prev.subtasks.map((st) => ({ ...st, assignedTo: null })),
     }));
   };
+
   const handleUserSelect = (user) => {
     if (!formData.assignedTo.find((u) => u.id === user.id)) {
       setFormData((prev) => ({
@@ -176,14 +171,15 @@ const NewTask = () => {
       if (subtask.assignedTo) {
         const assigneeId = subtask.assignedTo.id;
         const isCurrentUser = currentUser?.id === assigneeId;
+        const isProjectCreator = projectData?.creator?.id === assigneeId;
 
         if (selectedProjectId) {
           const isProjectMember = projectMembers.some(
             (user) => user.id === assigneeId
           );
-          if (!isProjectMember && !isCurrentUser) {
+          if (!isProjectMember && !isCurrentUser && !isProjectCreator) {
             errors[`subtask_assignee_${index}`] =
-              "Subtask assignee must be a member of the selected project.";
+              "Subtask assignee must be a member of the project or the project creator.";
             isValid = false;
           }
         } else {
@@ -211,6 +207,17 @@ const NewTask = () => {
     setError("");
 
     try {
+      const subtaskAssignees = formData.subtasks
+        .map((st) => st.assignedTo)
+        .filter(Boolean)
+        .filter((user) => user.id !== projectData?.creator?.id);
+
+      const uniqueAssignees = [
+        ...new Map(
+          [...formData.assignedTo, ...subtaskAssignees].map((u) => [u.id, u])
+        ).values(),
+      ];
+
       const taskData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -219,7 +226,7 @@ const NewTask = () => {
         due_date: formData.dueDate || null,
         due_time: formData.dueTime || null,
         project: formData.project || null,
-        assignees: formData.assignedTo.map((user) => user.id),
+        assignees: uniqueAssignees.map((user) => user.id),
         subtasks: formData.subtasks.map((subtask) => ({
           title: subtask.title.trim(),
           assigned_to: subtask.assignedTo?.id || null,
