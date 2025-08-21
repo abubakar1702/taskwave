@@ -311,6 +311,7 @@ const NewTask = () => {
                   projectId={formData.project || null}
                   placeholder="Search team members..."
                   error={validationErrors.assignedTo}
+                  showSelectedMembers={true}
                 />
               </div>
             )}

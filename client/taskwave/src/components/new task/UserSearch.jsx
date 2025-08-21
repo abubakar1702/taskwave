@@ -14,11 +14,15 @@ const UserSearch = ({
   placeholder = "Search using email...",
   error = null,
   disabled = false,
+  externalSelectedUsers = [],
+  externalOnSelect = null,
+  externalOnRemove = null,
+  excludeUsers = [],
+  showSelectedMembers,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [currentAssignees, setCurrentAssignees] = useState([]);
 
   const dropdownRef = useRef(null);
 
@@ -59,25 +63,34 @@ const UserSearch = ({
     if (e.key === "Escape") setIsDropdownOpen(false);
   }, []);
 
+  const excludeUserIds = excludeUsers.map((u) => u.id ?? u.user?.id);
+
   const handleSelect = useCallback(
     (user) => {
-      if (onSelectUser) {
+      if (externalOnSelect) {
+        externalOnSelect(user);
+      } else if (onSelectUser) {
         onSelectUser(user);
       }
       setSearchQuery("");
       setIsDropdownOpen(false);
     },
-    [onSelectUser]
+    [externalOnSelect, onSelectUser]
   );
 
   const handleRemove = useCallback(
     (userId) => {
-      if (onRemoveUser) {
+      if (externalOnRemove) {
+        externalOnRemove(userId);
+      } else if (onRemoveUser) {
         onRemoveUser(userId);
       }
     },
-    [onRemoveUser]
+    [externalOnRemove, onRemoveUser]
   );
+
+  const actualSelectedUsers =
+    externalSelectedUsers.length > 0 ? externalSelectedUsers : selectedUsers;
 
   const handleInputChange = (e) => {
     setSearchQuery(e.target.value);
@@ -91,13 +104,15 @@ const UserSearch = ({
   };
 
   const filteredUsers = availableUsers.filter(
-    (user) => !selectedUsers.some((selectedUser) => selectedUser.id === user.id)
+    (user) =>
+      !actualSelectedUsers.some((selected) => selected.id === user.id) &&
+      !excludeUserIds.includes(user.id)
   );
 
   const getUserDisplayName = (user) =>
     user.first_name && user.last_name
       ? `${user.first_name} ${user.last_name}`
-      : user.first_name;
+      : user.first_name || user.username;
 
   const getAvatarUrl = (user) => {
     if (!user.avatar) return null;
@@ -202,13 +217,13 @@ const UserSearch = ({
       </div>
 
       {/* Selected Users Display */}
-      {selectedUsers.length > 0 && (
+      {showSelectedMembers && actualSelectedUsers.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
-            Selected Team Members ({selectedUsers.length})
+            Selected Team Members ({actualSelectedUsers.length})
           </label>
           <div className="flex flex-wrap gap-2">
-            {selectedUsers.map((user) => (
+            {actualSelectedUsers.map((user) => (
               <div
                 key={user.id}
                 className="flex items-center space-x-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-full text-sm"

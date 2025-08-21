@@ -205,10 +205,14 @@ const AssigneesSection = () => {
 
       <ConfirmationModal
         isOpen={confirmationModal.isOpen}
-        title="Remove Assignee"
-        message={`Are you sure you want to remove "${confirmationModal.userName}" from this task? All the user's subtask(s) will be unassigned.`}
+        title="Remove Assignee?"
+        message={`Are you sure you want to remove "${confirmationModal.userName}" from this task? All of their subtasks will also be unassigned.`}
         onConfirm={confirmRemoveAssignee}
         onCancel={cancelRemoveAssignee}
+        confirmText="Remove"
+        loadingText="Removing..."
+        successMessage={`Assignee "${confirmationModal.userName}" removed successfully.`}
+        errorMessage="Failed to remove assignee. Please try again."
       />
     </div>
   );

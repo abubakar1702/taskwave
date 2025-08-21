@@ -9,6 +9,10 @@ const ConfirmationModal = ({
   message = "This action cannot be undone.",
   onConfirm,
   onCancel,
+  confirmText = "Confirm",
+  loadingText = "Processing...",
+  successMessage,
+  errorMessage,
 }) => {
   const [loading, setLoading] = useState(false);
 
@@ -16,10 +20,10 @@ const ConfirmationModal = ({
     try {
       setLoading(true);
       await onConfirm();
-      toast.success("Deleted successfully!");
+      if (successMessage) toast.success(successMessage);
       onCancel();
     } catch (err) {
-      toast.error("Failed to delete. Please try again.");
+      if (errorMessage) toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -44,11 +48,7 @@ const ConfirmationModal = ({
           <button
             onClick={onCancel}
             disabled={loading}
-            className={`px-5 py-2 rounded-lg font-medium transition ${
-              loading
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-gray-200 text-gray-800 hover:bg-gray-300"
-            }`}
+            className="px-5 py-2 rounded-lg font-medium bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -56,19 +56,15 @@ const ConfirmationModal = ({
           <button
             onClick={handleConfirm}
             disabled={loading}
-            className={`px-5 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
-              loading
-                ? "bg-red-600 text-white cursor-not-allowed"
-                : "bg-red-600 text-white hover:bg-red-700"
-            }`}
+            className="px-5 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? (
               <>
                 <ClipLoader size={18} color="#fff" />
-                <span>Deleting...</span>
+                <span>{loadingText}</span>
               </>
             ) : (
-              "Confirm"
+              confirmText
             )}
           </button>
         </div>
