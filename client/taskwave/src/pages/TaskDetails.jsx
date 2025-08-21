@@ -86,10 +86,10 @@ const TaskDetails = () => {
             </h3>
             <p className="text-red-700 mb-4">{error}</p>
             <button
-              onClick={() => navigate("/tasks")}
+              onClick={() => navigate(-1)}
               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Back to Tasks
+              Back
             </button>
           </div>
         </div>
@@ -104,11 +104,11 @@ const TaskDetails = () => {
       <div className="max-w-6xl mx-auto">
         <div className="mb-6 sm:mb-8">
           <button
-            onClick={() => navigate("/tasks")}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           >
             <HiOutlineArrowLeft className="w-5 h-5" />
-            <span className="text-sm sm:text-base">Back to Tasks</span>
+            <span className="text-sm sm:text-base">Back</span>
           </button>
 
           <TaskInfoCard
