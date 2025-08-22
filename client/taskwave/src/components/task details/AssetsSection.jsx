@@ -237,6 +237,10 @@ const AssetsSection = ({ taskId: propTaskId, projectId = null }) => {
         }"?`}
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
+        confirmText="Delete"
+        loadingText="Deleting..."
+        successMessage="Asset deleted successfully!"
+        errorMessage="Failed to delete asset. Please try again."
       />
     </div>
   );
