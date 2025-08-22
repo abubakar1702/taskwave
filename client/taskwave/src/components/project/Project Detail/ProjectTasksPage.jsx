@@ -68,63 +68,15 @@ const ProjectTasksPage = () => {
   const handleSortChange = (value) => {
     const sortMapping = {
       priority: "-priority",
-      due_date: "due_date",
+      due_date: "-due_date",
       created_at: "-created_at",
     };
-
     setSortBy(sortMapping[value] || `-${value}`);
   };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
   };
-
-  const sortedTasks = useMemo(() => {
-    if (!tasksData || !Array.isArray(tasksData) || tasksData.length === 0) {
-      return [];
-    }
-
-    const sorted = [...tasksData];
-
-    switch (sortBy) {
-      case "priority":
-      case "-priority":
-        const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
-        return sorted.sort((a, b) => {
-          const aPriority = priorityOrder[a.priority?.toLowerCase()] || 0;
-          const bPriority = priorityOrder[b.priority?.toLowerCase()] || 0;
-          return sortBy === "priority"
-            ? aPriority - bPriority
-            : bPriority - aPriority;
-        });
-
-      case "due_date":
-      case "-due_date":
-        return sorted.sort((a, b) => {
-          const aDate = a.due_date
-            ? new Date(a.due_date)
-            : new Date("9999-12-31");
-          const bDate = b.due_date
-            ? new Date(b.due_date)
-            : new Date("9999-12-31");
-          return sortBy === "due_date" ? aDate - bDate : bDate - aDate;
-        });
-
-      case "created_at":
-      case "-created_at":
-        return sorted.sort((a, b) => {
-          const aDate = new Date(a.created_at || 0);
-          const bDate = new Date(b.created_at || 0);
-          return sortBy === "created_at" ? aDate - bDate : bDate - aDate;
-        });
-
-      default:
-        return sorted;
-    }
-  }, [tasksData, sortBy]);
-
-  const displayTasks =
-    tasksData && Array.isArray(tasksData) ? tasksData : sortedTasks;
 
   if (projectLoading)
     return (
@@ -224,7 +176,7 @@ const ProjectTasksPage = () => {
               Try Again
             </button>
           </div>
-        ) : !displayTasks || displayTasks.length === 0 ? (
+        ) : !tasksData || tasksData.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
             <FaFolder className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -243,7 +195,7 @@ const ProjectTasksPage = () => {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayTasks.map((task) => (
+            {tasksData.map((task) => (
               <TaskCard key={task.id} {...task} project={projectData} />
             ))}
           </div>
