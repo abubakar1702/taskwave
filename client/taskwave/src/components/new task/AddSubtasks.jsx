@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { FiFileText, FiX, FiAlertCircle } from "react-icons/fi";
 import { FaPlus } from "react-icons/fa";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
-import UserInitial from "../auth/UserInitial";
+import Avatar from "../common/Avatar";
 
 const AddSubtasks = ({
   subtasks,
@@ -19,6 +19,10 @@ const AddSubtasks = ({
   const [newSubtask, setNewSubtask] = useState("");
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
   const { currentUser } = useCurrentUser();
+
+  subtasks.map((subtask, id) => {
+    console.log(subtask);
+  });
 
   const handleAddSubtask = () => {
     if (!newSubtask.trim()) {
@@ -46,20 +50,6 @@ const AddSubtasks = ({
 
     setNewSubtask("");
     setNewSubtaskAssignee("");
-  };
-
-  const renderAssigneeAvatar = (user) => {
-    if (!user) return null;
-
-    return user.avatar ? (
-      <img
-        src={user.avatar}
-        alt={user.username}
-        className="w-6 h-6 rounded-full border border-white shadow object-cover"
-      />
-    ) : (
-      <UserInitial className="w-6 h-6" />
-    );
   };
 
   const subtaskAssigneeOptions = selectedProject
@@ -120,13 +110,10 @@ const AddSubtasks = ({
 
             {subtask.assignedTo && (
               <div className="mt-2">
-                <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                  {renderAssigneeAvatar(subtask.assignedTo)}
+                <div className="inline-flex items-center p-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                  <Avatar user={subtask.assignedTo} size={6} />
                   <span className="ml-1">
-                    {subtask.assignedTo.first_name ||
-                    subtask.assignedTo.last_name
-                      ? `${subtask.assignedTo.first_name} ${subtask.assignedTo.last_name}`
-                      : subtask.assignedTo.username}
+                    {subtask.assignedTo.display_name}
                   </span>
                   <button
                     type="button"
