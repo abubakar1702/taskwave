@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useApi } from "../hooks/useApi";
 import { Link } from "react-router-dom";
 import { FaPlus, FaExclamationCircle, FaClipboardList } from "react-icons/fa";
@@ -17,6 +17,7 @@ const Tasks = () => {
     due_today: false,
     overdue: false,
   });
+  const [sortBy, setSortBy] = useState("created_at");
 
   const buildQuery = () => {
     const query = new URLSearchParams();
@@ -26,44 +27,40 @@ const Tasks = () => {
     if (filters.overdue) query.append("overdue", true);
     if (activeTab === "Assigned to me") query.append("assigned_to_me", true);
     if (activeTab === "Created by me") query.append("created_by_me", true);
+    if (sortBy) query.append("ordering", sortBy);
     return query.toString();
   };
+
+  const queryString = useMemo(() => buildQuery(), [activeTab, filters, sortBy]);
 
   const {
     data: tasks = [],
     loading,
     error,
-  } = useApi(`${API_BASE_URL}/api/tasks/?${buildQuery()}`, "GET", null, [
-    activeTab,
-    filters.priority,
-    filters.status,
-    filters.due_today,
-    filters.overdue,
+  } = useApi(`${API_BASE_URL}/api/tasks/?${queryString}`, "GET", null, [
+    queryString,
   ]);
 
   const onTabChange = (tab) => setActiveTab(tab);
   const onFilterChange = (name, value) =>
     setFilters({ ...filters, [name]: value });
+  const onSortChange = (value) => setSortBy(value);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Tasks{" "}
-              {!loading && (
-                <span className="text-gray-400">({tasks.length})</span>
-              )}
-            </h1>
-          </div>
-          <div>
-            <Link to={"/new-task/"}>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                New Task <FaPlus className="inline-block ml-1" />
-              </button>
-            </Link>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Tasks{" "}
+            {!loading && (
+              <span className="text-gray-400">({tasks.length})</span>
+            )}
+          </h1>
+          <Link to="/new-task/">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+              New Task <FaPlus className="inline-block ml-1" />
+            </button>
+          </Link>
         </div>
 
         <TaskFilter
@@ -71,6 +68,8 @@ const Tasks = () => {
           onTabChange={onTabChange}
           filters={filters}
           onFilterChange={onFilterChange}
+          sortBy={sortBy}
+          onSortChange={onSortChange}
         />
 
         {loading ? (
@@ -79,9 +78,7 @@ const Tasks = () => {
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <div className="text-red-600 mb-4">
-              <FaExclamationCircle className="mx-auto h-12 w-12" />
-            </div>
+            <FaExclamationCircle className="mx-auto h-12 w-12 text-red-600 mb-4" />
             <h3 className="text-lg font-medium text-red-900 mb-2">
               Failed to load tasks
             </h3>
@@ -97,16 +94,14 @@ const Tasks = () => {
           </div>
         ) : tasks.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <FaClipboardList className="mx-auto h-16 w-16" />
-            </div>
+            <FaClipboardList className="mx-auto h-16 w-16 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No tasks found
             </h3>
             <p className="text-gray-500 mb-6">
               Get started by creating your first task.
             </p>
-            <Link to={"/new-task/"}>
+            <Link to="/new-task/">
               <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
                 Create Task
               </button>
