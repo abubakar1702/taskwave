@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { FiFileText, FiX, FiAlertCircle } from "react-icons/fi";
 import { FaPlus } from "react-icons/fa";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
@@ -20,9 +20,29 @@ const AddSubtasks = ({
   const [newSubtaskAssignee, setNewSubtaskAssignee] = useState("");
   const { currentUser } = useCurrentUser();
 
-  subtasks.map((subtask, id) => {
+  console.log(subtasks);
+  subtasks.map((subtask, key) => {
     console.log(subtask);
   });
+
+  const subtaskAssigneeOptions = useMemo(() => {
+    let potentialUsers = [currentUser].filter(Boolean);
+
+    if (selectedProject) {
+      potentialUsers = [...potentialUsers, ...projectMembers];
+    } else {
+      potentialUsers = [...potentialUsers, ...assignedUsers];
+    }
+
+    const uniqueUserMap = new Map();
+    potentialUsers.forEach((user) => {
+      if (user && !uniqueUserMap.has(user.id)) {
+        uniqueUserMap.set(user.id, user);
+      }
+    });
+
+    return Array.from(uniqueUserMap.values());
+  }, [selectedProject, projectMembers, assignedUsers, currentUser]);
 
   const handleAddSubtask = () => {
     if (!newSubtask.trim()) {
@@ -30,14 +50,8 @@ const AddSubtasks = ({
     }
 
     let selectedUser = null;
-
-    const potentialAssignees = [
-      ...(selectedProject ? projectMembers : assignedUsers),
-      currentUser,
-    ].filter(Boolean);
-
     if (newSubtaskAssignee) {
-      selectedUser = potentialAssignees.find(
+      selectedUser = subtaskAssigneeOptions.find(
         (user) => user?.id === newSubtaskAssignee
       );
     }
@@ -52,9 +66,14 @@ const AddSubtasks = ({
     setNewSubtaskAssignee("");
   };
 
-  const subtaskAssigneeOptions = selectedProject
-    ? projectMembers
-    : assignedUsers;
+  const getDisplayName = (user) => {
+    if (!user) return "Unassigned";
+    const name =
+      user.first_name || user.last_name
+        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+        : user.username;
+    return `${name} - (${user.email})`;
+  };
 
   return (
     <div>
@@ -111,9 +130,14 @@ const AddSubtasks = ({
             {subtask.assignedTo && (
               <div className="mt-2">
                 <div className="inline-flex items-center p-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                  <Avatar user={subtask.assignedTo} size={6} />
+                  <Avatar
+                    name={subtask.assignedTo.first_name}
+                    url={subtask.assignedTo.avatar}
+                    size={6}
+                  />
                   <span className="ml-1">
-                    {subtask.assignedTo.display_name}
+                    {subtask.assignedTo?.first_name}{" "}
+                    {subtask.assignedTo?.last_name}
                   </span>
                   <button
                     type="button"
@@ -186,26 +210,11 @@ const AddSubtasks = ({
               disabled={isLoadingMembers}
             >
               <option value="">Unassigned</option>
-              {currentUser && (
-                <option value={currentUser.id}>
-                  {currentUser.first_name || currentUser.last_name
-                    ? `${currentUser.first_name || ""} ${
-                        currentUser.last_name || ""
-                      } - (${currentUser.email})`
-                    : currentUser.username}
+              {subtaskAssigneeOptions.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {getDisplayName(user)}
                 </option>
-              )}
-              {subtaskAssigneeOptions
-                .filter((user) => user.id !== currentUser?.id)
-                .map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.first_name || user.last_name
-                      ? `${user.first_name || ""} ${user.last_name || ""} - (${
-                          user.email
-                        })`
-                      : user.username}
-                  </option>
-                ))}
+              ))}
             </select>
           </div>
         </div>

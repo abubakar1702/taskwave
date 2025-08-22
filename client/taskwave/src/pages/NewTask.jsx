@@ -210,7 +210,7 @@ const NewTask = () => {
       const subtaskAssignees = formData.subtasks
         .map((st) => st.assignedTo)
         .filter(Boolean)
-        .filter((user) => user.id !== projectData?.creator?.id);
+        .filter((user) => user.id !== currentUser?.id);
 
       const uniqueAssignees = [
         ...new Map(
