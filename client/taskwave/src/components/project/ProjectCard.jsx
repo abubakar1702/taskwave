@@ -1,9 +1,9 @@
-import React from "react";
 import { format } from "date-fns";
 import { HiOutlineUserGroup } from "react-icons/hi";
 import { BsListTask } from "react-icons/bs";
 import { AiOutlinePaperClip } from "react-icons/ai";
 import { useNavigate } from "react-router-dom";
+import Avatar from "../common/Avatar";
 
 const ProjectCard = ({ project }) => {
   const {
@@ -18,45 +18,18 @@ const ProjectCard = ({ project }) => {
   } = project;
   const navigate = useNavigate();
 
-   const handleClick = () => {
-    // Fixed route to match ProjectDetails component
+  const handleClick = () => {
     navigate(`/project/${project.id}`);
   };
 
   const formatDate = (dateStr) =>
     dateStr ? format(new Date(dateStr), "MMM dd, yyyy") : "";
 
-  const renderAvatar = (user) => {
-    if (user?.avatar) {
-      const isAbsolute = user.avatar.startsWith("http");
-      const API_BASE_URL =
-        import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-      const avatarUrl = isAbsolute
-        ? user.avatar
-        : `${API_BASE_URL}${user.avatar}`;
-      return (
-        <img
-          src={avatarUrl}
-          alt={user.username}
-          className="w-7 h-7 rounded-full border-2 border-white shadow-sm object-cover"
-        />
-      );
-    }
-
-    const initial =
-      user.first_name?.[0]?.toUpperCase() ||
-      user.username?.[0]?.toUpperCase() ||
-      "U";
-
-    return (
-      <div className="w-7 h-7 rounded-full border-2 border-white shadow-sm bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-medium text-xs">
-        {initial}
-      </div>
-    );
-  };
-
   return (
-    <div onClick={handleClick} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-lg hover:border-indigo-300 hover:-translate-y-1 transition-all duration-300 ease-out min-h-[220px] flex flex-col">
+    <div
+      onClick={handleClick}
+      className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:shadow-lg hover:border-indigo-300 hover:-translate-y-1 transition-all duration-300 ease-out min-h-[220px] flex flex-col"
+    >
       {/* Title */}
       <h3 className="text-xl font-semibold text-gray-900 mb-2 leading-tight line-clamp-2">
         {title}
@@ -71,7 +44,7 @@ const ProjectCard = ({ project }) => {
       <div className="flex items-center gap-2 mb-4">
         {creator && (
           <>
-            {renderAvatar(creator)}
+            <Avatar name={creator.first_name} url={creator.avatar} size={7} />
             <span className="text-xs font-medium text-gray-700">
               {creator.first_name || creator.last_name
                 ? `${creator.first_name} ${creator.last_name}`.trim()
