@@ -3,15 +3,17 @@ from users.models import User
 from .validators import validate_due_date, validate_file_size
 import uuid
 
+
 class Project(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_projects')
+    creator = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='created_projects')
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
-    members = models.ManyToManyField(User, through='Membership', related_name='projects')
+    members = models.ManyToManyField(
+        User, through='Membership', related_name='projects')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
 
     def is_member(self, user):
         return self.members.filter(id=user.id).exists()
@@ -19,12 +21,14 @@ class Project(models.Model):
     def __str__(self):
         return f"Project {self.title} by {self.creator}"
 
+
 class Role(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, unique=True)
-    
+
     def __str__(self):
         return self.name
+
 
 class Membership(models.Model):
     class RoleChoices(models.TextChoices):
@@ -33,9 +37,12 @@ class Membership(models.Model):
         GUEST = 'Guest', 'Guest'
         INTERN = 'Intern', 'Intern'
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='memberships')
-    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='memberships')
-    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='memberships')
+    project = models.ForeignKey(
+        'Project', on_delete=models.CASCADE, related_name='memberships')
+    role = models.ForeignKey(
+        Role, on_delete=models.CASCADE, related_name='memberships')
     joined_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -48,13 +55,14 @@ class Task(models.Model):
         MEDIUM = 'Medium', 'Medium'
         HIGH = 'High', 'High'
         URGENT = 'Urgent', 'Urgent'
-    
+
     class StatusChoices(models.TextChoices):
         PENDING = 'Pending', 'Pending'
         IN_PROGRESS = 'In Progress', 'In Progress'
         COMPLETED = 'Completed', 'Completed'
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks_created')
+    creator = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='tasks_created')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     assignees = models.ManyToManyField(
@@ -65,11 +73,11 @@ class Task(models.Model):
         max_length=10, choices=PriorityChoices.choices, default=PriorityChoices.MEDIUM)
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING)
-    due_date = models.DateField(null=True, blank=True, validators=[validate_due_date])
+    due_date = models.DateField(
+        null=True, blank=True, validators=[validate_due_date])
     due_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
 
     class Meta:
         ordering = ['-due_date', 'priority']
@@ -84,12 +92,17 @@ class Task(models.Model):
             return f"{self.title} (Project: {self.project.title})"
         return f"{self.title} (Independent)"
 
+
 class Asset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    file = models.FileField(upload_to='assets/', validators=[validate_file_size])
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
-    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_assets')
+    file = models.FileField(upload_to='assets/',
+                            validators=[validate_file_size])
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, null=True, blank=True, related_name='assets')
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='uploaded_assets')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def delete(self, *args, **kwargs):
@@ -112,10 +125,13 @@ class Subtask(models.Model):
     def __str__(self):
         return f"Subtask {self.title} for {self.task.title}"
 
+
 class Comment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='comments')
     text = models.TextField()
     parent = models.ForeignKey(
         'self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies'

@@ -15,30 +15,33 @@ class CustomEmailDevice(EmailDevice):
         )
         return otp
 
+
 class CustomUserManager(BaseUserManager):
     def _generate_username(self, first_name, last_name):
-        first_clean = re.sub(r'[^a-zA-Z]', '', first_name.lower()) if first_name else ''
-        last_clean = re.sub(r'[^a-zA-Z]', '', last_name.lower()) if last_name else ''
-        
+        first_clean = re.sub(
+            r'[^a-zA-Z]', '', first_name.lower()) if first_name else ''
+        last_clean = re.sub(
+            r'[^a-zA-Z]', '', last_name.lower()) if last_name else ''
+
         base_username = f"{first_clean}{last_clean}"
         if not base_username:
             base_username = "user"
-        
+
         short_uuid = str(uuid.uuid4()).replace('-', '')[:5]
         username = f"{base_username}_{short_uuid}"
-        
+
         while self.model.objects.filter(username=username).exists():
             short_uuid = str(uuid.uuid4()).replace('-', '')[:5]
             username = f"{base_username}_{short_uuid}"
-        
+
         return username
 
     def _create_user(self, email, first_name=None, last_name=None, password=None, **extra_fields):
         if not email:
             raise ValueError("You have not specified a valid email address")
-        
+
         email = self.normalize_email(email)
-        
+
         if not first_name and not last_name:
             email_username = email.split('@')[0]
             parts = re.split(r'[._-]', email_username)
@@ -48,9 +51,9 @@ class CustomUserManager(BaseUserManager):
             else:
                 first_name = parts[0] if parts else 'User'
                 last_name = ''
-        
+
         username = self._generate_username(first_name or '', last_name or '')
-        
+
         user = self.model(
             email=email,
             username=username,
@@ -85,7 +88,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True, editable=True)
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
-    avatar = models.ImageField(upload_to='uploads/avatars', blank=True, null=True)
+    avatar = models.ImageField(
+        upload_to='uploads/avatars', blank=True, null=True)
 
     is_active = models.BooleanField(default=True)
     is_superuser = models.BooleanField(default=False)

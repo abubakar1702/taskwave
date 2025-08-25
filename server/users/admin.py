@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User
+from .utils import generate_unique_username
 
 class UserAdmin(BaseUserAdmin):
     model = User
@@ -25,5 +26,12 @@ class UserAdmin(BaseUserAdmin):
 
     search_fields = ('email', 'username')
     ordering = ('-date_joined',)
+
+    def save_model(self, request, obj, form, change):
+        if not obj.username:
+            first_name = obj.first_name or 'user'
+            last_name = obj.last_name or 'anon'
+            obj.username = generate_unique_username(first_name, last_name)
+        super().save_model(request, obj, form, change)
 
 admin.site.register(User, UserAdmin)

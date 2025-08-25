@@ -17,7 +17,7 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("id", "name",)
     search_fields = ("name",)
 
 
@@ -30,7 +30,8 @@ class MembershipAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ("title", "creator", "priority", "status", "due_date", "project")
+    list_display = ("title", "creator", "priority",
+                    "status", "due_date", "project")
     list_filter = ("priority", "status", "due_date", "project")
     search_fields = ("title", "creator__username", "project__title")
     filter_horizontal = ("assignees",)
