@@ -1,9 +1,7 @@
-from pyexpat import model
 from rest_framework import serializers
 from .models import Project, Role, Membership, Task, Asset, Subtask, Comment
 from users.serializers import UserSerializer
 from users.models import User
-
 
 
 class AssetSerializer(serializers.ModelSerializer):
@@ -11,31 +9,40 @@ class AssetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Asset
-        fields = ['id', 'file', 'task', 'project', 'uploaded_by', 'uploaded_at']
+        fields = ['id', 'file', 'task', 'project',
+                  'uploaded_by', 'uploaded_at']
 
     def validate(self, data):
         task = data.get('task')
         project = data.get('project')
         if not task and not project:
-            raise serializers.ValidationError("Asset must belong to either a task or a project.")
+            raise serializers.ValidationError(
+                "Asset must belong to either a task or a project.")
         if task and project:
-            raise serializers.ValidationError("Asset cannot belong to both a task and a project.")
+            raise serializers.ValidationError(
+                "Asset cannot belong to both a task and a project.")
         return data
 
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ['id', 'name']
 
 
 class CommentSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     replies = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Comment
         fields = '__all__'
-        read_only_fields = ['user', 'task','created_at', 'updated_at']
-    
+        read_only_fields = ['user', 'task', 'created_at', 'updated_at']
+
     def get_replies(self, obj):
         replies = obj.replies.all()
         return CommentSerializer(replies, many=True, context=self.context).data
+
 
 class SubtaskSerializer(serializers.ModelSerializer):
     assigned_to = serializers.PrimaryKeyRelatedField(
@@ -43,12 +50,13 @@ class SubtaskSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    
+
     class Meta:
         model = Subtask
-        fields = ['id', 'task', 'title', 'assigned_to', 'is_completed', 'created_at', 'updated_at']
+        fields = ['id', 'task', 'title', 'assigned_to',
+                  'is_completed', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'task']
-    
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         if instance.assigned_to:
@@ -56,15 +64,15 @@ class SubtaskSerializer(serializers.ModelSerializer):
         else:
             data['assigned_to'] = None
         return data
-    
+
     def validate(self, data):
         assigned_user = data.get('assigned_to')
         task = self.context.get('task')
         request = self.context.get('request')
 
         if task and assigned_user:
-            if (assigned_user not in task.assignees.all() and 
-                assigned_user != task.creator):
+            if (assigned_user not in task.assignees.all() and
+                    assigned_user != task.creator):
                 raise serializers.ValidationError({
                     "assigned_to": "This user is not assigned to the parent task and is not the task creator."
                 })
@@ -73,7 +81,7 @@ class SubtaskSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         assigned_to = validated_data.get('assigned_to')
-        
+
         if assigned_to is not None:
             if isinstance(assigned_to, list):
                 if len(assigned_to) > 0:
@@ -86,30 +94,74 @@ class SubtaskSerializer(serializers.ModelSerializer):
                         })
                 else:
                     validated_data['assigned_to'] = None
-        
+
         return super().update(instance, validated_data)
 
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model= Role
-        fields= ['name']
 
 class MembershipSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     role = RoleSerializer(read_only=True)
+
+    user_id = serializers.UUIDField(write_only=True, required=False)
+    role_id = serializers.UUIDField(write_only=True, required=False)
+
     class Meta:
         model = Membership
-        fields = ['id', 'user', 'role', 'joined_at']
+        fields = ['id', 'user', 'role', 'user_id', 'role_id', 'joined_at']
+
+    def create(self, validated_data):
+        user_id = validated_data.pop('user_id', None)
+        role_id = validated_data.pop('role_id', None)
+
+        if user_id:
+            try:
+                validated_data['user'] = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError(
+                    {'user_id': 'Invalid user ID'})
+
+        if role_id:
+            try:
+                validated_data['role'] = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                raise serializers.ValidationError(
+                    {'role_id': 'Invalid role ID'})
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        role_id = validated_data.pop('role_id', None)
+
+        if role_id:
+            try:
+                instance.role = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                raise serializers.ValidationError(
+                    {'role_id': 'Invalid role ID'})
+
+        return super().update(instance, validated_data)
+
 
 class ProjectSerializer(serializers.ModelSerializer):
     creator = UserSerializer(read_only=True)
-    members = serializers.SerializerMethodField()
-    tasks = serializers.SerializerMethodField()
-    assets = AssetSerializer(many=True)
+    members = serializers.SerializerMethodField(read_only=True)
+    tasks = serializers.SerializerMethodField(read_only=True)
+    assets = AssetSerializer(many=True, read_only=True)
+
+    member_assignments = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        help_text="List of members with their roles: [{'user_id': 'uuid', 'role_id': 'uuid'}]"
+    )
+
     class Meta:
         model = Project
-        fields = ['id', 'title', 'description', 'creator', 'members', 'tasks','assets', 'created_at', 'updated_at']
-    
+        fields = [
+            'id', 'title', 'description', 'creator', 'members', 'tasks',
+            'assets', 'member_assignments', 'created_at', 'updated_at'
+        ]
+
     def get_members(self, obj):
         memberships = obj.memberships.all()
         return MembershipSerializer(memberships, many=True).data
@@ -118,11 +170,36 @@ class ProjectSerializer(serializers.ModelSerializer):
         tasks = obj.tasks.all()
         return TaskSerializer(tasks, many=True, context=self.context).data
 
+    def create(self, validated_data):
+        member_assignments = validated_data.pop('member_assignments', [])
+        project = super().create(validated_data)
+
+        for assignment in member_assignments:
+            user_id = assignment.get('user_id')
+            role_id = assignment.get('role_id')
+
+            if user_id and role_id:
+                try:
+                    user = User.objects.get(id=user_id)
+                    role = Role.objects.get(id=role_id)
+                    Membership.objects.create(
+                        user=user,
+                        project=project,
+                        role=role
+                    )
+                except (User.DoesNotExist, Role.DoesNotExist):
+                    raise serializers.ValidationError({
+                        'member_assignments': f'Invalid user_id or role_id: user_id={user_id}, role_id={role_id}'
+                    })
+
+        return project
+
+
 class TaskSerializer(serializers.ModelSerializer):
     creator = UserSerializer(read_only=True)
     subtasks = SubtaskSerializer(many=True, required=False)
     assignees = serializers.PrimaryKeyRelatedField(
-        many=True, 
+        many=True,
         queryset=User.objects.all()
     )
     project = serializers.PrimaryKeyRelatedField(
@@ -142,19 +219,18 @@ class TaskSerializer(serializers.ModelSerializer):
             'comments', 'assets', 'created_at', 'updated_at'
         ]
 
-    
     def create(self, validated_data):
         subtasks_data = validated_data.pop('subtasks', [])
         assignees_data = validated_data.pop('assignees', [])
-    
+
         task = Task.objects.create(**validated_data)
 
         if assignees_data:
             task.assignees.set(assignees_data)
-    
+
         current_user = self.context['request'].user
         assignee_ids = [user.id for user in assignees_data]
-        
+
         for subtask_data in subtasks_data:
             assigned_user = subtask_data.get('assigned_to')
             if assigned_user:
@@ -163,27 +239,28 @@ class TaskSerializer(serializers.ModelSerializer):
                         "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
                     })
             Subtask.objects.create(task=task, **subtask_data)
-    
+
         return task
-    
+
     def update(self, instance, validated_data):
         subtasks_data = validated_data.pop('subtasks', None)
         assignees_data = validated_data.pop('assignees', None)
-        
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
+
         if assignees_data is not None:
             instance.assignees.set(assignees_data)
-        
+
         if subtasks_data is not None:
             instance.subtasks.all().delete()
-            
+
             current_user = self.context['request'].user
-            current_assignees = list(instance.assignees.all()) if assignees_data is None else assignees_data
+            current_assignees = list(instance.assignees.all(
+            )) if assignees_data is None else assignees_data
             assignee_ids = [user.id for user in current_assignees]
-            
+
             for subtask_data in subtasks_data:
                 assigned_user = subtask_data.get('assigned_to')
                 if assigned_user:
@@ -192,18 +269,20 @@ class TaskSerializer(serializers.ModelSerializer):
                             "subtasks": f"User '{assigned_user.username}' must be assigned to the main task before being assigned to a subtask."
                         })
                 Subtask.objects.create(task=instance, **subtask_data)
-        
+
         return instance
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['assignees'] = UserSerializer(instance.assignees.all(), many=True).data
+        data['assignees'] = UserSerializer(
+            instance.assignees.all(), many=True).data
         return data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['assignees'] = UserSerializer(instance.assignees.all(), many=True).data
-    
+        data['assignees'] = UserSerializer(
+            instance.assignees.all(), many=True).data
+
         if instance.project:
             data['project'] = {
                 'id': instance.project.id,
@@ -218,11 +297,3 @@ class TaskSerializer(serializers.ModelSerializer):
                 },
             }
         return data
-
-
-
-
-
-
-
-

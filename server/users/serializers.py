@@ -3,6 +3,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from .models import User
 from django.core.cache import cache
+import random
+from .utils import generate_unique_username
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -11,7 +13,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'display_name', 'avatar', 'username', 'password')
+        fields = ('id', 'email', 'first_name', 'last_name',
+                  'display_name', 'avatar', 'username', 'password')
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -30,26 +33,36 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         value = value.lower()
         if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise serializers.ValidationError(
+                "A user with this email already exists.")
         return value
 
     def validate_first_name(self, value):
         if value and len(value.strip()) < 1:
-            raise serializers.ValidationError("First name must be at least 1 characters long.")
+            raise serializers.ValidationError(
+                "First name must be at least 1 characters long.")
         return value.strip() if value else value
 
     def validate_last_name(self, value):
         if value and len(value.strip()) < 1:
-            raise serializers.ValidationError("Last name must be at least 1 characters long.")
+            raise serializers.ValidationError(
+                "Last name must be at least 1 characters long.")
         return value.strip() if value else value
 
     def create(self, validated_data):
+        first_name = validated_data.get('first_name', '').strip() or 'user'
+        last_name = validated_data.get('last_name', '').strip() or 'anon'
+
+        username = generate_unique_username(first_name, last_name)
+
         return User.objects.create_user(
             email=validated_data['email'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
             password=validated_data['password']
         )
+
 
 class UsernameCheckSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=50)
@@ -60,31 +73,35 @@ class UsernameCheckSerializer(serializers.Serializer):
             raise serializers.ValidationError("Username is already taken.")
         return value
 
+
 class UserLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    password = serializers.CharField(
+        write_only=True, style={'input_type': 'password'})
 
     def validate_email(self, value):
         return value.lower()
 
+
 class UserRegistrationSerializer(serializers.ModelSerializer):
     otp = serializers.CharField(write_only=True, required=True)
-    
+
     class Meta:
         model = User
         fields = ['email', 'password', 'otp']
         extra_kwargs = {'password': {'write_only': True}}
-    
+
     def validate(self, data):
         email = data.get('email')
         if not cache.get(f'verified_{email}'):
             raise serializers.ValidationError("Email not verified with OTP")
         return data
-    
+
     def create(self, validated_data):
         validated_data.pop('otp')
         user = User.objects.create_user(**validated_data)
         return user
+
 
 class UserInfoSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
@@ -92,7 +109,7 @@ class UserInfoSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'id', 'email', 'first_name', 'last_name', 'avatar', 'avatar_url',
+            'id', 'email', 'username', 'first_name', 'last_name', 'avatar', 'avatar_url',
             'date_joined', 'last_login', 'is_active'
         )
         read_only_fields = (
@@ -107,19 +124,23 @@ class UserInfoSerializer(serializers.ModelSerializer):
 
     def validate_first_name(self, value):
         if value is not None and len(value.strip()) < 1:
-            raise serializers.ValidationError("First name must be at least 1 characters long.")
+            raise serializers.ValidationError(
+                "First name must be at least 1 characters long.")
         return value.strip() if value else value
 
     def validate_last_name(self, value):
         if value is not None and len(value.strip()) < 1:
-            raise serializers.ValidationError("Last name must be at least 1 characters long.")
+            raise serializers.ValidationError(
+                "Last name must be at least 1 characters long.")
         return value.strip() if value else value
 
     def validate_avatar(self, value):
         if value:
             if value.size > 5 * 1024 * 1024:
-                raise serializers.ValidationError("Avatar file size cannot exceed 5MB.")
-            allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+                raise serializers.ValidationError(
+                    "Avatar file size cannot exceed 5MB.")
+            allowed_types = ['image/jpeg',
+                             'image/png', 'image/gif', 'image/webp']
             if hasattr(value, 'content_type') and value.content_type not in allowed_types:
                 raise serializers.ValidationError(
                     "Avatar must be a valid image file (JPEG, PNG, GIF, or WebP)."
@@ -129,6 +150,7 @@ class UserInfoSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         instance.first_name = validated_data.get('first_name', instance.first_name)
         instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.username = validated_data.get('username', instance.username)
 
         if 'avatar' in validated_data:
             if instance.avatar:
@@ -138,11 +160,38 @@ class UserInfoSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+    def validate_username(self, value):
+        if not value or len(value.strip()) < 1:
+            raise serializers.ValidationError("Username cannot be empty.")
+        return value.strip()
+
+
+
+
+class UpdatePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate_new_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError(
+                "New password must be at least 8 characters long.")
+        return value
+
 
 class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-    new_password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
-    confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    old_password = serializers.CharField(
+        write_only=True, style={'input_type': 'password'})
+    new_password = serializers.CharField(
+        write_only=True, min_length=8, style={'input_type': 'password'})
+    confirm_password = serializers.CharField(
+        write_only=True, style={'input_type': 'password'})
 
     def validate_new_password(self, value):
         user = self.context['request'].user
@@ -156,13 +205,16 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context['request'].user
 
         if not user.check_password(attrs['old_password']):
-            raise serializers.ValidationError({'old_password': 'Old password is incorrect.'})
+            raise serializers.ValidationError(
+                {'old_password': 'Old password is incorrect.'})
 
         if attrs['new_password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({'confirm_password': 'Password confirmation does not match the new password.'})
+            raise serializers.ValidationError(
+                {'confirm_password': 'Password confirmation does not match the new password.'})
 
         if user.check_password(attrs['new_password']):
-            raise serializers.ValidationError({'new_password': 'New password must be different from the old password.'})
+            raise serializers.ValidationError(
+                {'new_password': 'New password must be different from the old password.'})
 
         return attrs
 
@@ -170,16 +222,22 @@ class ChangePasswordSerializer(serializers.Serializer):
 class UserSearchSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
-    
+    display_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar_url', 'full_name')
-    
+        fields = ('id', 'username', 'email', 'first_name',
+                  'last_name', 'avatar', 'avatar_url', 'display_name', 'full_name')
+
     def get_avatar_url(self, obj):
         if obj.avatar:
             request = self.context.get('request')
             return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
         return None
-    
+
     def get_full_name(self, obj):
         return obj.full_name
+
+    def get_display_name(self, obj):
+        full_name = f"{obj.first_name} {obj.last_name}".strip()
+        return full_name if full_name else obj.email

@@ -8,16 +8,17 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, Bl
 
 from api.models import Membership
 from .serializers import (
-    UserSerializer, 
-    UserLoginSerializer, 
-    UserInfoSerializer, 
+    UpdatePasswordSerializer,
+    UserSerializer,
+    UserLoginSerializer,
+    UserInfoSerializer,
     ChangePasswordSerializer,
     UsernameCheckSerializer,
     UserSearchSerializer
 )
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.decorators import method_decorator
-from social_django.utils import psa 
+from social_django.utils import psa
 import pyotp
 from django.core.cache import cache
 from django.core.mail import send_mail, EmailMultiAlternatives
@@ -32,10 +33,12 @@ import random
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db.models import Q
-
+import uuid
+from .utils import generate_unique_username
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
@@ -51,7 +54,7 @@ class GoogleAuthView(APIView):
 
             try:
                 idinfo = id_token.verify_oauth2_token(
-                    google_token, 
+                    google_token,
                     requests.Request(),
                     settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY
                 )
@@ -62,7 +65,6 @@ class GoogleAuthView(APIView):
                 email = idinfo.get('email')
                 first_name = idinfo.get('given_name', '')
                 last_name = idinfo.get('family_name', '')
-                google_id = idinfo.get('sub')
 
                 if not email:
                     return Response(
@@ -70,12 +72,16 @@ class GoogleAuthView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
+                username = generate_unique_username(
+                    first_name or 'user', last_name or 'anon'
+                )
+
                 user, created = User.objects.get_or_create(
                     email=email,
                     defaults={
                         'first_name': first_name,
                         'last_name': last_name,
-                        'username': email,
+                        'username': username,
                         'is_active': True,
                     }
                 )
@@ -86,7 +92,7 @@ class GoogleAuthView(APIView):
                     user.save()
 
                 refresh = RefreshToken.for_user(user)
-                
+
                 return Response({
                     'user': {
                         'id': user.id,
@@ -120,6 +126,7 @@ class GoogleAuthView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
@@ -145,17 +152,18 @@ class LoginView(APIView):
         if serializer.is_valid():
             email = serializer.validated_data['email']
             password = serializer.validated_data['password']
-            
+
             user = authenticate(request, email=email, password=password)
-            
+
             if user is not None:
                 if not user.is_active:
                     return Response({
                         'error': 'User account is disabled'
                     }, status=status.HTTP_401_UNAUTHORIZED)
-                
+
                 refresh = RefreshToken.for_user(user)
-                user_serializer = UserSerializer(user, context={'request': request})
+                user_serializer = UserSerializer(
+                    user, context={'request': request})
                 return Response({
                     'user': user_serializer.data,
                     'refresh': str(refresh),
@@ -178,7 +186,7 @@ class LogoutView(APIView):
                 return Response({
                     "error": "Refresh token is required"
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
+
             token = RefreshToken(refresh_token)
             token.blacklist()
             return Response({
@@ -195,13 +203,14 @@ class UserInfoView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
-        serializer = UserInfoSerializer(request.user, context={'request': request})
+        serializer = UserInfoSerializer(
+            request.user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request):
         serializer = UserInfoSerializer(
-            request.user, 
-            data=request.data, 
+            request.user,
+            data=request.data,
             partial=True,
             context={'request': request}
         )
@@ -218,28 +227,22 @@ class UpdatePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
-        
+        serializer = UpdatePasswordSerializer(
+            data=request.data, context={'request': request}
+        )
+
         if serializer.is_valid():
             user = request.user
             new_password = serializer.validated_data['new_password']
-            
+
             user.set_password(new_password)
             user.save()
 
-            try:
-                outstanding_tokens = OutstandingToken.objects.filter(user=user)
-                for token in outstanding_tokens:
-                    BlacklistedToken.objects.get_or_create(token=token)
-            except Exception:
-                pass
-
             return Response({
-                'message': 'Password updated successfully. Please login again.'
+                'message': 'Password updated successfully.'
             }, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UsernameCheckView(APIView):
     permission_classes = [AllowAny]
@@ -262,7 +265,7 @@ class DeleteAccountView(APIView):
 
     def delete(self, request):
         password = request.data.get('password')
-        
+
         if not password:
             return Response({
                 'error': 'Password is required to delete account'
@@ -274,7 +277,8 @@ class DeleteAccountView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            outstanding_tokens = OutstandingToken.objects.filter(user=request.user)
+            outstanding_tokens = OutstandingToken.objects.filter(
+                user=request.user)
             for token in outstanding_tokens:
                 BlacklistedToken.objects.get_or_create(token=token)
         except Exception:
@@ -282,10 +286,11 @@ class DeleteAccountView(APIView):
 
         request.user.is_active = False
         request.user.save()
-        
+
         return Response({
             'message': 'Account deleted successfully'
         }, status=status.HTTP_200_OK)
+
 
 class EmailExistsCheckView(APIView):
     def post(self, request, *args, **kwargs):
@@ -293,12 +298,13 @@ class EmailExistsCheckView(APIView):
         exists = User.objects.filter(email__iexact=email).exists()
         return Response({'exists': exists}, status=status.HTTP_200_OK)
 
+
 class SendOTPView(APIView):
     def post(self, request):
         email = request.data.get('email')
         if not email:
             return Response({"error": "Email required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         totp = pyotp.TOTP(pyotp.random_base32(), interval=300)
         otp = totp.now()
         cache.set(f'otp_{email}', otp, timeout=300)
@@ -323,23 +329,23 @@ class SendOTPView(APIView):
         )
         msg.attach_alternative(html_content, "text/html")
         msg.send()
-        
+
         return Response({"message": "OTP sent successfully"})
+
 
 class VerifyOTPView(APIView):
     def post(self, request):
         email = request.data.get('email')
         otp = request.data.get('otp')
-        
+
         cached_otp = cache.get(f'otp_{email}')
-        
+
         if not cached_otp or cached_otp != otp:
             return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        cache.set(f'verified_{email}', True, timeout=3600)
-        
-        return Response({"message": "Email verified successfully"})
 
+        cache.set(f'verified_{email}', True, timeout=3600)
+
+        return Response({"message": "Email verified successfully"})
 
 
 class ResetPasswordView(APIView):
@@ -364,7 +370,7 @@ class ResetPasswordView(APIView):
             cache.set(f'otp_{email}', otp_code, timeout=300)
 
             print(f"Password reset OTP for {email}: {otp_code}")
-            
+
             subject = "Your Taskwave Password Reset Code"
             text_content = f"Your password reset code is: {otp_code}"
             html_content = f"""
@@ -393,7 +399,7 @@ class ResetPasswordView(APIView):
 
             if not cached_otp:
                 return Response({"error": "OTP expired. Please request a new one."}, status=status.HTTP_400_BAD_REQUEST)
-                
+
             if cached_otp != str(otp).strip():
                 return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -411,22 +417,21 @@ class ResetPasswordView(APIView):
         return Response({"error": "Invalid request parameters"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class UserSearchAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserSearchSerializer
-    
+
     def get_queryset(self):
         query = self.request.query_params.get('q', '').strip()
         if not query:
             return User.objects.none()
-            
+
         return User.objects.filter(
             Q(username__icontains=query) |
             Q(email__icontains=query),
             is_active=True
         ).exclude(id=self.request.user.id).order_by('username')[:20]
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
@@ -435,20 +440,29 @@ class UserSearchAPIView(generics.ListAPIView):
             'results': serializer.data
         }, status=status.HTTP_200_OK)
 
+
 class UserSearchForAddingAsAssigneeAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserSearchSerializer
 
     def get_queryset(self):
-        query = self.request.query_params.get('q', '').strip()
+        email_query = self.request.query_params.get('q', '').strip()
         project_id = self.request.query_params.get('project_id')
 
-        if not query:
+        if not email_query or '@' not in email_query:
             return User.objects.none()
 
+        email_parts = email_query.split('@')
+        if len(email_parts) < 2:
+            return User.objects.none()
+
+        username_part = email_parts[0]
+        domain_part = email_parts[1]
+
         queryset = User.objects.filter(
-            Q(username__icontains=query) |
-            Q(email__icontains=query),
+            Q(email__iexact=email_query) |
+            Q(email__istartswith=f"{username_part}@") & Q(
+                email__icontains=domain_part),
             is_active=True
         ).exclude(id=self.request.user.id)
 
@@ -458,5 +472,4 @@ class UserSearchForAddingAsAssigneeAPIView(generics.ListAPIView):
 
             queryset = queryset.filter(memberships__project_id=project_id)
 
-
-        return queryset.order_by('username')[:20]
+        return queryset.order_by('email')[:20]
